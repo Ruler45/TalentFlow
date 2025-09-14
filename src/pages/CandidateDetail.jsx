@@ -95,6 +95,7 @@ export default function CandidateDetail() {
     <div className="mt-4 p-4 border rounded">
       <h3 className="text-xl font-semibold">{candidate.name}</h3>
       <p>Email: {candidate.email}</p>
+      <p className="text-gray-600">Position: {candidate.jobTitle || 'Unknown Position'}</p>
 
       {/* Stage selector */}
       <div className="mt-2">

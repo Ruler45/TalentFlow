@@ -68,6 +68,10 @@ export function makeServer({ environment = "development" } = {}) {
         email() {
           return faker.internet.email();
         },
+        jobId() {
+          // Get a random job ID between 1 and 25 (our seeded job count)
+          return faker.number.int({ min: 1, max: 25 }).toString();
+        },
         stage() {
           return faker.helpers.arrayElement([
             "applied",
@@ -135,7 +139,13 @@ export function makeServer({ environment = "development" } = {}) {
         const end = start + pageSize;
         const slice = allCandidates
           .slice(start, end)
-          .map(model => model.attrs);
+          .map(model => {
+            const job = schema.jobs.find(model.attrs.jobId);
+            return {
+              ...model.attrs,
+              jobTitle: job ? job.attrs.title : 'Unknown Position'
+            };
+          });
 
         return {
           candidates: slice,
@@ -153,13 +163,18 @@ export function makeServer({ environment = "development" } = {}) {
           return new Response(404, {}, { error: "Not found" });
         }
 
+        // Get associated job
+        const job = schema.jobs.find(candidate.attrs.jobId);
+        
         // Ensure we return the attributes with proper structure
         return {
           id: candidate.id,
           name: candidate.attrs.name,
           email: candidate.attrs.email,
           stage: candidate.attrs.stage,
-          timeline: candidate.attrs.timeline || []
+          timeline: candidate.attrs.timeline || [],
+          jobId: candidate.attrs.jobId,
+          jobTitle: job ? job.attrs.title : 'Unknown Position'
         };
       });
 

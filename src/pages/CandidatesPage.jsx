@@ -60,10 +60,11 @@ export default function CandidatesPage() {
   const Row = ({ index, style }) => {
     const c = candidates[index];
     return (
-      <div style={style} className="border-b px-2">
+      <div style={style} className="border-b px-2 py-1 flex justify-between">
         <Link to={`${c.id}`} className="text-blue-600">
           {c.name} ({c.stage})
         </Link>
+        <span className="text-gray-600">{c.jobTitle}</span>
       </div>
     );
   };
@@ -71,7 +72,7 @@ export default function CandidatesPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="p-4">
+    <div className="p-4 w-[100vw] ">
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold">Candidates</h2>
@@ -121,6 +122,8 @@ export default function CandidatesPage() {
         rowComponent={Row}
         rowCount={candidates.length}
         rowHeight={25}
+        width="100%"
+        height={400}
         rowProps={{ candidates }}
       />
       
