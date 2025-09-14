@@ -16,6 +16,7 @@ export default function App() {
         <Link to="/candidates">Candidates</Link>
       </nav>
       <Routes>
+        <Route path="/" element={<h3>Home page</h3>} />
         <Route path="/jobs/*" element={<JobsPage />} />
         <Route path="/jobs/:jobId" element={<JobsDetail />} />
         <Route path="/candidates/*" element={<CandidatesPage />} />
