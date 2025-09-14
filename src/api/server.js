@@ -21,6 +21,22 @@ export function makeServer({ environment = "development" } = {}) {
       assessment: Model,
     },
 
+    seeds(server) {
+      // Only seed if there's no existing data
+      const existingJobs = server.schema.jobs.all().models;
+      const existingCandidates = server.schema.candidates.all().models;
+
+      if (existingJobs.length === 0) {
+        // Create 25 jobs first
+        server.createList('job', 25);
+      }
+      
+      if (existingCandidates.length === 0) {
+        // Create 100 candidates
+        server.createList('candidate', 100);
+      }
+    },
+
     factories: {
       job: Factory.extend({
         title() {
@@ -46,9 +62,6 @@ export function makeServer({ environment = "development" } = {}) {
         },
       }),
       candidate: Factory.extend({
-        id(i) {
-          return i + 1; // Ensure sequential IDs starting from 1
-        },
         name() {
           return faker.person.fullName();
         },
@@ -65,13 +78,12 @@ export function makeServer({ environment = "development" } = {}) {
             "rejected",
           ]);
         },
-        afterCreate(candidate) {
-          candidate.update({
-            timeline: [
-              { date: faker.date.past().toISOString(), status: "applied" },
-              { date: new Date().toISOString(), status: candidate.stage },
-            ],
-          });
+        timeline() {
+          const stage = this.stage;
+          return [
+            { date: faker.date.past().toISOString(), status: "applied" },
+            { date: new Date().toISOString(), status: stage }
+          ];
         },
       }),
     },

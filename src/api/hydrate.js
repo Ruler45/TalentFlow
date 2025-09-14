@@ -7,119 +7,76 @@ export async function hydrateServer(server) {
     
     await db.open();
     
-    // Check if we already have data
-    const candidateCount = await db.candidates.count();
+    // Check if we already have data in IndexedDB
     const jobCount = await db.jobs.count();
+    const candidateCount = await db.candidates.count();
     
-    console.log("Current data count:", { candidates: candidateCount, jobs: jobCount });
+    console.log("Existing data in IndexedDB:", { jobs: jobCount, candidates: candidateCount });
 
-    // Clear existing data in Mirage before adding data
-    server.db.emptyData();
-
-    if (candidateCount === 0 || jobCount === 0) {
-      console.log("No existing data found, seeding database...");
+    if (jobCount === 0 || candidateCount === 0) {
+      // No existing data, get from Mirage and store in IndexedDB
+      console.log("No data in IndexedDB, syncing from Mirage...");
       
-      // First, clear Mirage's data
-      server.db.emptyData();
+      try {
+        const jobs = server.schema.jobs.all().models.map(m => m.attrs);
+        const candidates = server.schema.candidates.all().models.map(m => m.attrs);
 
-      // Create jobs
-      console.log("Creating jobs...");
-      const jobs = [];
-      for (let i = 0; i < 25; i++) {
-        const job = server.create("job", { id: i + 1 });
-        jobs.push(job.attrs);
-      }
-      await db.jobs.bulkPut(jobs);
-      console.log("Jobs created:", jobs.length);
+        await db.jobs.bulkPut(jobs);
+        await db.candidates.bulkPut(candidates);
 
-      // Create candidates
-      console.log("Creating candidates...");
-      const candidates = [];
-      for (let i = 0; i < 100; i++) {
-        const candidate = server.create("candidate", { 
-          id: i + 1,
-          timeline: [
-            { date: new Date(Date.now() - 86400000).toISOString(), status: "applied" },
-            { date: new Date().toISOString(), status: "screen" }
-          ]
+        console.log("Data synced to IndexedDB:", {
+          jobs: jobs.length,
+          candidates: candidates.length
         });
-        candidates.push(candidate.attrs);
+
+        return {
+          jobs: jobs.length,
+          candidates: candidates.length
+        };
+      } catch (error) {
+        console.error("Error syncing data to IndexedDB:", error);
+        throw error;
       }
-      await db.candidates.bulkPut(candidates);
-      console.log("Candidates created:", candidates.length);
-
-      // Verify Mirage state
-      console.log("Verifying Mirage state:", {
-        candidatesInMirage: server.schema.candidates.all().length,
-        jobsInMirage: server.schema.jobs.all().length,
-        sampleCandidate: server.schema.candidates.first()?.attrs
-      });
-    
-    // Verify data was stored
-    const storedCandidates = await db.candidates.toArray();
-    const storedJobs = await db.jobs.toArray();
-    
-    console.log("Data verification:", {
-      candidatesInDB: storedCandidates.length,
-      jobsInDB: storedJobs.length,
-      candidatesInMirage: server.db.candidates.length,
-      jobsInMirage: server.db.jobs.length
-    });
-
-      return {
-        candidates: storedCandidates.length,
-        jobs: storedJobs.length
-      };
     } else {
-      console.log("Loading existing data from IndexedDB...");
+      // Data exists in IndexedDB, load it into Mirage
+      console.log("Loading existing data from IndexedDB into Mirage...");
       
-      // Load existing data from IndexedDB
-      const jobs = await db.jobs.toArray();
-      const candidates = await db.candidates.toArray();
+      try {
+        const jobs = await db.jobs.toArray();
+        const candidates = await db.candidates.toArray();
 
-      console.log("Data from IndexedDB:", {
-        firstCandidate: candidates[0],
-        totalCandidates: candidates.length
-      });
+        // Clear existing data and recreate collections
+        server.db.emptyData();
+        
+        // Create collections one by one to maintain ID integrity
+        for (const job of jobs) {
+          const attrs = { ...job };
+          delete attrs.id; // Let Mirage handle the ID
+          server.create('job', attrs);
+        }
+        
+        for (const candidate of candidates) {
+          const attrs = { ...candidate };
+          delete attrs.id; // Let Mirage handle the ID
+          server.create('candidate', attrs);
+        }
 
-      // Clear Mirage data first
-      server.db.emptyData();
+        console.log("Data loaded into Mirage:", {
+          jobs: jobs.length,
+          candidates: candidates.length
+        });
 
-      // Insert directly into Mirage's database
-      server.db.loadData({
-        jobs: jobs,
-        candidates: candidates
-      });
-
-      // Verify the data was loaded
-      console.log("Immediate verification:", {
-        candidatesInDb: server.db.candidates.length,
-        sampleCandidate: server.db.candidates[0]
-      });
-
-      // Verify Mirage state after restoration
-      console.log("Mirage state after restore:", {
-        mirageDb: server.db.dump(),
-        firstMirageCandidate: server.schema.candidates.first()?.attrs
-      });
-      
-      console.log("Restored data to Mirage:", {
-        jobs: jobs.length,
-        candidates: candidates.length
-      });
-
-      return {
-        candidates: candidates.length,
-        jobs: jobs.length
-      };
+        return {
+          jobs: jobs.length,
+          candidates: candidates.length
+        };
+      } catch (error) {
+        console.error("Error loading data from IndexedDB:", error);
+        throw error;
+      }
     }
   } catch (error) {
     console.error("Error during server hydration:", error);
-    console.error("Error details:", {
-      name: error.name,
-      message: error.message,
-      stack: error.stack
-    });
     throw error;
   }
 }
