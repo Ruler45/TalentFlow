@@ -84,13 +84,8 @@ export function makeServer({ environment = "development" } = {}) {
       // Remove random timing for debugging
       this.timing = 0;
 
-      // Log all incoming requests
-      this.pretender.handledRequest = function(verb, path, request) {
-        console.log(`Mirage intercepted: ${verb} ${path}`, {
-          params: request.queryParams,
-          timestamp: new Date().toISOString()
-        });
-      };
+      // Setup request handling
+      this.pretender.handledRequest = function() {};
       // Jobs
       this.get("/jobs", (schema) => schema.jobs.all());
       this.post("/jobs", (schema, request) => {
@@ -104,39 +99,25 @@ export function makeServer({ environment = "development" } = {}) {
 
       // Candidates
       this.get("/candidates", async function(schema, request) {
-        console.log("Candidates endpoint called");
-        
         // Wait for server to be ready
         await serverReady;
         
         const page = Number(request.queryParams.page) || 1;
         const pageSize = Number(request.queryParams.pageSize) || 20;
-        
-        console.log("Query params:", { page, pageSize });
-
-        // Debug schema state
-        console.log("Schema debug:", {
-          hasSchema: !!schema,
-          hasCandidates: !!schema.candidates,
-          schemaKeys: Object.keys(schema)
-        });
+        const stage = request.queryParams.stage || null;
 
         // Get candidates using schema's collection
         const collection = schema.candidates;
-        console.log("Got collection:", !!collection);
-
         const all = collection.all();
-        console.log("Called all() on collection:", !!all);
 
-        const allCandidates = all.models || [];
+        let allCandidates = all.models || [];
+        
+        // Apply stage filter if provided
+        if (stage) {
+          allCandidates = allCandidates.filter(model => model.attrs.stage === stage);
+        }
+        
         const total = allCandidates.length;
-
-        console.log("Collection state:", {
-          collectionExists: !!collection,
-          hasAllMethod: !!collection.all,
-          totalModels: total,
-          firstModel: allCandidates[0]?.attrs
-        });
 
         const start = (page - 1) * pageSize;
         const end = start + pageSize;
@@ -144,47 +125,30 @@ export function makeServer({ environment = "development" } = {}) {
           .slice(start, end)
           .map(model => model.attrs);
 
-        console.log("Page calculation:", {
-          start,
-          end,
-          sliceLength: slice.length,
-          sampleRecord: slice[0]
-        });
-
-        const response = {
+        return {
           candidates: slice,
           total
         };
-
-        console.log("Sending response:", response);
-        return response;
       });
 
       this.get("/candidates/:id", async function(schema, request) {
-        console.log("Candidate detail endpoint called for id:", request.params.id);
-        
         // Wait for server to be ready
         await serverReady;
         
         let candidate = schema.candidates.find(request.params.id);
-        console.log("Raw candidate from schema:", candidate);
         
         if (!candidate) {
-          console.log("Candidate not found");
           return new Response(404, {}, { error: "Not found" });
         }
 
         // Ensure we return the attributes with proper structure
-        const response = {
+        return {
           id: candidate.id,
           name: candidate.attrs.name,
           email: candidate.attrs.email,
           stage: candidate.attrs.stage,
           timeline: candidate.attrs.timeline || []
         };
-
-        console.log("Sending candidate response:", response);
-        return response;
       });
 
       this.post("/candidates", (schema, request) => {
@@ -195,16 +159,12 @@ export function makeServer({ environment = "development" } = {}) {
       this.passthrough();
 
       this.patch("/candidates/:id", async function(schema, request) {
-        console.log("Candidate update endpoint called");
-        
         // Wait for server to be ready
         await serverReady;
         
         let id = request.params.id;
         let attrs = JSON.parse(request.requestBody);
         
-        console.log("Updating candidate:", { id, attrs });
-
         let candidate = schema.candidates.find(id);
         if (!candidate) return new Response(404, {}, { error: "Not found" });
 
@@ -229,20 +189,15 @@ export function makeServer({ environment = "development" } = {}) {
         try {
           // Update Mirage first
           candidate.update(updatedAttrs);
-          console.log("Updated Mirage candidate:", candidate.attrs);
 
           try {
             // Then update IndexedDB and wait for it to complete
-            console.log("Updating IndexedDB with:", updatedAttrs);
-            // First delete to ensure clean update
             await db.candidates.delete(Number(id));
-            // Then add the new data
             await db.candidates.add({ ...updatedAttrs, id: Number(id) });
             
             // Function to verify the update with retries
             const verifyUpdate = async (retryCount = 0) => {
               const verifyDb = await db.candidates.get(Number(id));
-              console.log(`Verification attempt ${retryCount + 1} from IndexedDB:`, verifyDb);
               
               if (!verifyDb) {
                 throw new Error("Failed to retrieve updated candidate from IndexedDB");
@@ -250,14 +205,9 @@ export function makeServer({ environment = "development" } = {}) {
               
               if (verifyDb.stage !== updatedAttrs.stage) {
                 if (retryCount < 3) {
-                  console.log(`Stage mismatch, retrying in 100ms... (attempt ${retryCount + 1})`);
                   await new Promise(resolve => setTimeout(resolve, 100));
                   return verifyUpdate(retryCount + 1);
                 }
-                console.error("IndexedDB verification failed after retries - stage mismatch", {
-                  expected: updatedAttrs.stage,
-                  actual: verifyDb.stage
-                });
                 throw new Error("Failed to persist stage update after retries");
               }
               
@@ -268,7 +218,7 @@ export function makeServer({ environment = "development" } = {}) {
             await verifyUpdate();
             
           } catch (dbError) {
-            console.error("IndexedDB operation failed:", dbError);
+            console.error("IndexedDB update failed:", dbError);
             // Continue with Mirage response even if IndexedDB fails
           }
 
@@ -284,15 +234,8 @@ export function makeServer({ environment = "development" } = {}) {
             timeline: updatedCandidate.attrs.timeline || []
           };
           
-          console.log("Stage update successful", {
-            response,
-            mirageState: updatedCandidate.attrs
-          });
-          
-          // Return the response directly without using Response constructor
           return response;
         } catch (error) {
-          console.error("Error updating candidate:", error);
           return new Response(500, {}, { 
             error: "Failed to update candidate", 
             details: error.message 
@@ -309,21 +252,10 @@ export function makeServer({ environment = "development" } = {}) {
 
   // Wait for hydration to complete before returning server
   return hydrateServer(server).then(() => {
-    console.log("Server hydration complete");
-    
-    // Verify routes are set up
-    console.log("Available routes:", {
-      routes: server.pretender.hosts.undefined.handlers.map(h => ({
-        method: h.method,
-        path: h.path
-      }))
-    });
-
     // Mark server as ready
     serverReadyResolve(true);
     return server;
   }).catch(error => {
-    console.error("Server hydration failed:", error);
     serverReadyResolve(false);
     throw error;
   });

@@ -13,32 +13,22 @@ export default function CandidateDetail() {
     const fetchCandidate = async (retryCount = 0) => {
       try {
         setLoading(true);
-        console.log(`Fetching candidate ${id}, attempt ${retryCount + 1}`);
-        
         const res = await fetch(`/api/candidates/${id}`);
-        console.log("Candidate response:", {
-          ok: res.ok,
-          status: res.status,
-          statusText: res.statusText
-        });
 
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
 
         const json = await res.json();
-        console.log("Candidate data:", json);
 
         // If we got no data and haven't retried too many times, retry
         if ((!json || !json.id) && retryCount < 2) {
-          console.log("Invalid or empty response, retrying in 1 second...");
           await new Promise(resolve => setTimeout(resolve, 1000));
           return fetchCandidate(retryCount + 1);
         }
 
         // Check if we need to handle a nested structure
         const candidateData = json.candidate || json;
-        console.log("Processed candidate data:", candidateData);
 
         if (!candidateData.id) {
           throw new Error("Invalid candidate data received");
@@ -46,10 +36,9 @@ export default function CandidateDetail() {
 
         setCandidate(candidateData);
         setLoading(false);
-      } catch (error) {
-        console.error("Error fetching candidate:", error);
+      } catch (_) {
         if (retryCount < 2) {
-          console.log("Retrying after error...");
+          console.log("Retrying after error...",_);
           await new Promise(resolve => setTimeout(resolve, 1000));
           return fetchCandidate(retryCount + 1);
         }
@@ -63,18 +52,10 @@ export default function CandidateDetail() {
   // update stage
   const updateStage = async (newStage) => {
     try {
-      console.log(`Updating candidate ${id} stage to ${newStage}`);
-      
       const res = await fetch(`/api/candidates/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: newStage }),
-      });
-
-      console.log("Update response:", {
-        ok: res.ok,
-        status: res.status,
-        statusText: res.statusText
       });
 
       if (!res.ok) {
@@ -82,7 +63,6 @@ export default function CandidateDetail() {
       }
 
       const json = await res.json();
-      console.log("Updated candidate data:", json);
       
       // Check for error response
       if (json.error) {

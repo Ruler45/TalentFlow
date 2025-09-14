@@ -5,50 +5,47 @@ import CandidateDetail from "./CandidateDetail";
 
 const PAGE_SIZE = 20;
 
+const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
+
 export default function CandidatesPage() {
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
+  const [selectedStage, setSelectedStage] = useState('');
+
+  useEffect(() => {
+    // Reset to first page when filter changes
+    setPage(1);
+  }, [selectedStage]);
 
   useEffect(() => {
     const fetchCandidates = async (retryCount = 0) => {
-      console.log("Starting candidates fetch for page:", page, "attempt:", retryCount + 1);
-      
       try {
-        const url = `/api/candidates?page=${page}&pageSize=${PAGE_SIZE}`;
-        console.log("Fetching URL:", url);
+        const url = new URL('/api/candidates', window.location.origin);
+        url.searchParams.set('page', page);
+        url.searchParams.set('pageSize', PAGE_SIZE);
+        if (selectedStage) {
+          url.searchParams.set('stage', selectedStage);
+        }
 
         const res = await fetch(url);
-        console.log("Fetch response:", {
-          ok: res.ok,
-          status: res.status,
-          statusText: res.statusText,
-          headers: Object.fromEntries([...res.headers.entries()])
-        });
-
         if (!res.ok) {
           throw new Error(`HTTP error! status: ${res.status}`);
         }
 
-        const text = await res.text();
-        console.log("Raw response:", text);
-
-        const json = JSON.parse(text);
-        console.log("Parsed response:", json);
+        const json = await res.json();
         
         // If we got an empty response and server might not be ready, retry
         if (json.total === 0 && retryCount < 2) {
-          console.log("Empty response, retrying in 1 second...");
           await new Promise(resolve => setTimeout(resolve, 1000));
           return fetchCandidates(retryCount + 1);
         }
         
         setCandidates(json.candidates || []);
         setTotal(json.total || 0);
-      } catch (error) {
-        console.error("Fetch error:", error);
+      } catch (_) {
         if (retryCount < 2) {
-          console.log("Retrying after error...");
+          console.log("Retrying after error...",_);
           await new Promise(resolve => setTimeout(resolve, 1000));
           return fetchCandidates(retryCount + 1);
         }
@@ -56,7 +53,7 @@ export default function CandidatesPage() {
     };
 
     fetchCandidates();
-  }, [page]);
+  }, [page, selectedStage]);
 
   const Row = ({ index, style }) => {
     const c = candidates[index];
@@ -73,13 +70,35 @@ export default function CandidatesPage() {
 
   return (
     <div className="p-4">
-      <h2 className="text-lg font-bold">Candidates</h2>
+      <div className="mb-4 flex items-center gap-4">
+        <h2 className="text-lg font-bold">Candidates</h2>
+        <div className="flex items-center gap-2">
+          <label htmlFor="stage-filter" className="font-medium">
+            Filter by Stage:
+          </label>
+          <select
+            id="stage-filter"
+            value={selectedStage}
+            onChange={(e) => setSelectedStage(e.target.value)}
+            className="border px-2 py-1 rounded"
+          >
+            <option value="">All Stages</option>
+            {STAGES.map((stage) => (
+              <option key={stage} value={stage}>
+                {stage}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      
       <List
         rowComponent={Row}
         rowCount={candidates.length}
         rowHeight={25}
         rowProps={{ candidates }}
       />
+      
       <div className="flex gap-2 mt-4">
         <button
           disabled={page === 1}
