@@ -10,25 +10,85 @@ export default function CandidateDetail() {
 
   // fetch candidate (with timeline)
   useEffect(() => {
-    setLoading(true);
-    fetch(`/api/candidates/${id}`)
-      .then((res) => res.json())
-      .then((json) => {
-        setCandidate(json.candidate);
+    const fetchCandidate = async (retryCount = 0) => {
+      try {
+        setLoading(true);
+        console.log(`Fetching candidate ${id}, attempt ${retryCount + 1}`);
+        
+        const res = await fetch(`/api/candidates/${id}`);
+        console.log("Candidate response:", {
+          ok: res.ok,
+          status: res.status,
+          statusText: res.statusText
+        });
+
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+
+        const json = await res.json();
+        console.log("Candidate data:", json);
+
+        // If we got no data and haven't retried too many times, retry
+        if ((!json || !json.id) && retryCount < 2) {
+          console.log("Invalid or empty response, retrying in 1 second...");
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchCandidate(retryCount + 1);
+        }
+
+        // Check if we need to handle a nested structure
+        const candidateData = json.candidate || json;
+        console.log("Processed candidate data:", candidateData);
+
+        if (!candidateData.id) {
+          throw new Error("Invalid candidate data received");
+        }
+
+        setCandidate(candidateData);
         setLoading(false);
-      })
-      .catch(() => setLoading(false));
+      } catch (error) {
+        console.error("Error fetching candidate:", error);
+        if (retryCount < 2) {
+          console.log("Retrying after error...");
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return fetchCandidate(retryCount + 1);
+        }
+        setLoading(false);
+      }
+    };
+
+    fetchCandidate();
   }, [id]);
 
   // update stage
   const updateStage = async (newStage) => {
-    const res = await fetch(`/api/candidates/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stage: newStage }),
-    });
-    const json = await res.json();
-    setCandidate(json); // json now includes updated candidate + timeline
+    try {
+      console.log(`Updating candidate ${id} stage to ${newStage}`);
+      
+      const res = await fetch(`/api/candidates/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: newStage }),
+      });
+
+      console.log("Update response:", {
+        ok: res.ok,
+        status: res.status,
+        statusText: res.statusText
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const json = await res.json();
+      console.log("Updated candidate data:", json);
+      
+      setCandidate(json); // json now includes updated candidate + timeline
+    } catch (error) {
+      console.error("Error updating candidate stage:", error);
+      // Could add error state handling here if needed
+    }
   };
 
   if (loading) return <p className="p-4">Loading candidate...</p>;

@@ -160,10 +160,31 @@ export function makeServer({ environment = "development" } = {}) {
         return response;
       });
 
-      this.get("/candidates/:id", (schema, request) => {
+      this.get("/candidates/:id", async function(schema, request) {
+        console.log("Candidate detail endpoint called for id:", request.params.id);
+        
+        // Wait for server to be ready
+        await serverReady;
+        
         let candidate = schema.candidates.find(request.params.id);
-        if (!candidate) return new Response(404, {}, { error: "Not found" });
-        return candidate;
+        console.log("Raw candidate from schema:", candidate);
+        
+        if (!candidate) {
+          console.log("Candidate not found");
+          return new Response(404, {}, { error: "Not found" });
+        }
+
+        // Ensure we return the attributes with proper structure
+        const response = {
+          id: candidate.id,
+          name: candidate.attrs.name,
+          email: candidate.attrs.email,
+          stage: candidate.attrs.stage,
+          timeline: candidate.attrs.timeline || []
+        };
+
+        console.log("Sending candidate response:", response);
+        return response;
       });
 
       this.post("/candidates", (schema, request) => {
@@ -173,9 +194,16 @@ export function makeServer({ environment = "development" } = {}) {
 
       this.passthrough();
 
-      this.patch("/candidates/:id", async (schema, request) => {
+      this.patch("/candidates/:id", async function(schema, request) {
+        console.log("Candidate update endpoint called");
+        
+        // Wait for server to be ready
+        await serverReady;
+        
         let id = request.params.id;
         let attrs = JSON.parse(request.requestBody);
+        
+        console.log("Updating candidate:", { id, attrs });
 
         let candidate = schema.candidates.find(id);
         if (!candidate) return new Response(404, {}, { error: "Not found" });
@@ -202,7 +230,17 @@ export function makeServer({ environment = "development" } = {}) {
         candidate.update(updatedAttrs);
         await db.candidates.update(id, updatedAttrs);
 
-        return candidate.attrs;
+        // Ensure consistent response format
+        const response = {
+          id: candidate.id,
+          name: candidate.attrs.name,
+          email: candidate.attrs.email,
+          stage: candidate.attrs.stage,
+          timeline: candidate.attrs.timeline || []
+        };
+
+        console.log("Sending updated candidate response:", response);
+        return response;
       });
 
       // Assessments
