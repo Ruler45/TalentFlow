@@ -12,7 +12,7 @@ export default function CandidatesPage() {
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [selectedStage, setSelectedStage] = useState('');
+  const [selectedStage, setSelectedStage] = useState("");
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
@@ -23,11 +23,11 @@ export default function CandidatesPage() {
   useEffect(() => {
     const fetchCandidates = async (retryCount = 0) => {
       try {
-        const url = new URL('/api/candidates', window.location.origin);
-        url.searchParams.set('page', page);
-        url.searchParams.set('pageSize', PAGE_SIZE);
+        const url = new URL("/api/candidates", window.location.origin);
+        url.searchParams.set("page", page);
+        url.searchParams.set("pageSize", PAGE_SIZE);
         if (selectedStage) {
-          url.searchParams.set('stage', selectedStage);
+          url.searchParams.set("stage", selectedStage);
         }
 
         const res = await fetch(url);
@@ -36,19 +36,19 @@ export default function CandidatesPage() {
         }
 
         const json = await res.json();
-        
+
         // If we got an empty response and server might not be ready, retry
         if (json.total === 0 && retryCount < 2) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           return fetchCandidates(retryCount + 1);
         }
-        
+
         setCandidates(json.candidates || []);
         setTotal(json.total || 0);
       } catch (_) {
         if (retryCount < 2) {
-          console.log("Retrying after error...",_);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log("Retrying after error...", _);
+          await new Promise((resolve) => setTimeout(resolve, 1000));
           return fetchCandidates(retryCount + 1);
         }
       }
@@ -60,11 +60,12 @@ export default function CandidatesPage() {
   const Row = ({ index, style }) => {
     const c = candidates[index];
     return (
-      <div style={style} className="border-b px-2 py-1 flex justify-between">
-        <Link to={`${c.id}`} className="text-blue-600">
-          {c.name} ({c.stage})
+      <div style={style} className=" px-2 py-1 flex gap-2 w-fit min-h-fit">
+        <Link to={`${c.id}`} className="text-blue-200 w-3xs h-fit">
+          {c.name}
         </Link>
-        <span className="text-gray-600">{c.jobTitle}</span>
+        <span className="text-yellow-600 w-3xs min-h-20 ">{c.jobTitle}</span>
+        <span>{c.stage}</span>
       </div>
     );
   };
@@ -72,7 +73,7 @@ export default function CandidatesPage() {
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
-    <div className="p-4 w-[100vw] ">
+    <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold">Candidates</h2>
@@ -102,31 +103,6 @@ export default function CandidatesPage() {
           New Candidate
         </button>
       </div>
-
-      {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg w-full max-w-md">
-            <CandidateForm
-              onSubmit={(candidate) => {
-                setCandidates(prev => [candidate, ...prev]);
-                setTotal(prev => prev + 1);
-                setShowForm(false);
-              }}
-              onCancel={() => setShowForm(false)}
-            />
-          </div>
-        </div>
-      )}
-      
-      <List
-        rowComponent={Row}
-        rowCount={candidates.length}
-        rowHeight={25}
-        width="100%"
-        height={400}
-        rowProps={{ candidates }}
-      />
-      
       <div className="flex gap-2 mt-4">
         <button
           disabled={page === 1}
@@ -147,6 +123,36 @@ export default function CandidatesPage() {
         </button>
       </div>
 
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <CandidateForm
+              onSubmit={(candidate) => {
+                setCandidates((prev) => [candidate, ...prev]);
+                setTotal((prev) => prev + 1);
+                setShowForm(false);
+              }}
+              onCancel={() => setShowForm(false)}
+            />
+          </div>
+        </div>
+      )}
+
+      <div className=" px-2 py-1 flex gap-2 w-fit border-b">
+        <span className="text-blue-200 w-3xs">Name</span>
+        <span className="text-yellow-600 w-3xs">Job Title</span>
+        <span>Stage</span>
+      </div>
+
+      <div className="flex gap-1 flex-col">
+        {candidates.map((c) => (
+          <div className=" px-2 py-1 flex gap-2 w-fit ">
+            <Link to={`${c.id}`} className="text-blue-200 w-3xs">{c.name}</Link>
+            <span className="text-yellow-600 w-3xs">{c.jobTitle} </span>
+            <span>{c.stage} </span>
+          </div>
+        ))}
+      </div>
 
       <Routes>
         <Route path="/:id" element={<CandidateDetail />} />
