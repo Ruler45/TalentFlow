@@ -151,9 +151,65 @@ export function makeServer({ environment = "development" } = {}) {
         };
       });
 
-      this.post("/candidates", (schema, request) => {
+      this.post("/candidates", async function(schema, request) {
+        await serverReady;
+        
         let attrs = JSON.parse(request.requestBody);
-        return schema.candidates.create(attrs);
+        
+        // Add initial timeline entry
+        attrs.timeline = [{
+          date: new Date().toISOString(),
+          status: attrs.stage || 'applied'
+        }];
+
+        try {
+          // Create in Mirage first
+          const candidate = schema.candidates.create(attrs);
+          
+          // Then store in IndexedDB
+          try {
+            await db.candidates.add({
+              ...candidate.attrs,
+              id: Number(candidate.id)
+            });
+
+            // Function to verify the creation with retries
+            const verifyCreation = async (retryCount = 0) => {
+              const verifyDb = await db.candidates.get(Number(candidate.id));
+              
+              if (!verifyDb) {
+                if (retryCount < 3) {
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  return verifyCreation(retryCount + 1);
+                }
+                throw new Error("Failed to verify candidate creation after retries");
+              }
+              
+              return verifyDb;
+            };
+            
+            // Wait for verification with retries
+            await verifyCreation();
+            
+          } catch (dbError) {
+            console.error("IndexedDB creation failed:", dbError);
+            // Continue with Mirage response even if IndexedDB fails
+          }
+
+          // Return consistent response format
+          return {
+            id: candidate.id,
+            name: candidate.attrs.name,
+            email: candidate.attrs.email,
+            stage: candidate.attrs.stage,
+            timeline: candidate.attrs.timeline || []
+          };
+        } catch (error) {
+          return new Response(500, {}, { 
+            error: "Failed to create candidate", 
+            details: error.message 
+          });
+        }
       });
 
       this.passthrough();

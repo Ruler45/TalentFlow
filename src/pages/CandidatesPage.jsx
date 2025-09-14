@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { List } from "react-window";
 import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
+import CandidateForm from "../components/CandidateForm";
 
 const PAGE_SIZE = 20;
 
@@ -12,6 +13,7 @@ export default function CandidatesPage() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [selectedStage, setSelectedStage] = useState('');
+  const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
     // Reset to first page when filter changes
@@ -70,27 +72,50 @@ export default function CandidatesPage() {
 
   return (
     <div className="p-4">
-      <div className="mb-4 flex items-center gap-4">
-        <h2 className="text-lg font-bold">Candidates</h2>
-        <div className="flex items-center gap-2">
-          <label htmlFor="stage-filter" className="font-medium">
-            Filter by Stage:
-          </label>
-          <select
-            id="stage-filter"
-            value={selectedStage}
-            onChange={(e) => setSelectedStage(e.target.value)}
-            className="border px-2 py-1 rounded"
-          >
-            <option value="">All Stages</option>
-            {STAGES.map((stage) => (
-              <option key={stage} value={stage}>
-                {stage}
-              </option>
-            ))}
-          </select>
+      <div className="mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <h2 className="text-lg font-bold">Candidates</h2>
+          <div className="flex items-center gap-2">
+            <label htmlFor="stage-filter" className="font-medium">
+              Filter by Stage:
+            </label>
+            <select
+              id="stage-filter"
+              value={selectedStage}
+              onChange={(e) => setSelectedStage(e.target.value)}
+              className="border px-2 py-1 rounded"
+            >
+              <option value="">All Stages</option>
+              {STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {stage}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+        <button
+          onClick={() => setShowForm(true)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          New Candidate
+        </button>
       </div>
+
+      {showForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <CandidateForm
+              onSubmit={(candidate) => {
+                setCandidates(prev => [candidate, ...prev]);
+                setTotal(prev => prev + 1);
+                setShowForm(false);
+              }}
+              onCancel={() => setShowForm(false)}
+            />
+          </div>
+        </div>
+      )}
       
       <List
         rowComponent={Row}
