@@ -226,21 +226,78 @@ export function makeServer({ environment = "development" } = {}) {
           timeline
         };
 
-        // Update both Mirage and IndexedDB
-        candidate.update(updatedAttrs);
-        await db.candidates.update(id, updatedAttrs);
+        try {
+          // Update Mirage first
+          candidate.update(updatedAttrs);
+          console.log("Updated Mirage candidate:", candidate.attrs);
 
-        // Ensure consistent response format
-        const response = {
-          id: candidate.id,
-          name: candidate.attrs.name,
-          email: candidate.attrs.email,
-          stage: candidate.attrs.stage,
-          timeline: candidate.attrs.timeline || []
-        };
+          try {
+            // Then update IndexedDB and wait for it to complete
+            console.log("Updating IndexedDB with:", updatedAttrs);
+            // First delete to ensure clean update
+            await db.candidates.delete(Number(id));
+            // Then add the new data
+            await db.candidates.add({ ...updatedAttrs, id: Number(id) });
+            
+            // Function to verify the update with retries
+            const verifyUpdate = async (retryCount = 0) => {
+              const verifyDb = await db.candidates.get(Number(id));
+              console.log(`Verification attempt ${retryCount + 1} from IndexedDB:`, verifyDb);
+              
+              if (!verifyDb) {
+                throw new Error("Failed to retrieve updated candidate from IndexedDB");
+              }
+              
+              if (verifyDb.stage !== updatedAttrs.stage) {
+                if (retryCount < 3) {
+                  console.log(`Stage mismatch, retrying in 100ms... (attempt ${retryCount + 1})`);
+                  await new Promise(resolve => setTimeout(resolve, 100));
+                  return verifyUpdate(retryCount + 1);
+                }
+                console.error("IndexedDB verification failed after retries - stage mismatch", {
+                  expected: updatedAttrs.stage,
+                  actual: verifyDb.stage
+                });
+                throw new Error("Failed to persist stage update after retries");
+              }
+              
+              return verifyDb;
+            };
+            
+            // Wait for verification with retries
+            await verifyUpdate();
+            
+          } catch (dbError) {
+            console.error("IndexedDB operation failed:", dbError);
+            // Continue with Mirage response even if IndexedDB fails
+          }
 
-        console.log("Sending updated candidate response:", response);
-        return response;
+          // Get the updated candidate from schema to ensure we have the latest state
+          const updatedCandidate = schema.candidates.find(id);
+          
+          // Ensure consistent response format using schema data
+          const response = {
+            id: updatedCandidate.id,
+            name: updatedCandidate.attrs.name,
+            email: updatedCandidate.attrs.email,
+            stage: updatedCandidate.attrs.stage,
+            timeline: updatedCandidate.attrs.timeline || []
+          };
+          
+          console.log("Stage update successful", {
+            response,
+            mirageState: updatedCandidate.attrs
+          });
+          
+          // Return the response directly without using Response constructor
+          return response;
+        } catch (error) {
+          console.error("Error updating candidate:", error);
+          return new Response(500, {}, { 
+            error: "Failed to update candidate", 
+            details: error.message 
+          });
+        }
       });
 
       // Assessments

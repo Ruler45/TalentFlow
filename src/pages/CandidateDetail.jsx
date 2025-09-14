@@ -84,6 +84,23 @@ export default function CandidateDetail() {
       const json = await res.json();
       console.log("Updated candidate data:", json);
       
+      // Check for error response
+      if (json.error) {
+        throw new Error(json.error);
+      }
+      
+      // Validate response data shape
+      if (!json || !json.id || !json.stage || typeof json.stage !== 'string') {
+        console.error("Invalid response format:", json);
+        throw new Error("Invalid response data format");
+      }
+      
+      // Ensure timeline is an array
+      if (!Array.isArray(json.timeline)) {
+        json.timeline = [];
+      }
+      
+      console.log("Setting candidate state with:", json);
       setCandidate(json); // json now includes updated candidate + timeline
     } catch (error) {
       console.error("Error updating candidate stage:", error);
