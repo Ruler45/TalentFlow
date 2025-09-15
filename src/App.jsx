@@ -1,5 +1,5 @@
 // import { useEffect, useState } from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Link,NavLink } from "react-router-dom";
 import JobsPage from "./pages/JobsPage";
 import CandidatesPage from "./pages/CandidatesPage";
 import CandidateDetail from "./pages/CandidateDetail";
@@ -7,13 +7,13 @@ import JobsDetail from "./pages/JobDetail";
 
 export default function App() {
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-white text-black min-h-screen">
       <Router>
         <nav className="p-4 flex gap-4 border-b border-gray-300 mb-4 justify-between">
           <span className="text-2xl">TalenFlow</span>
           <div className="flex gap-4">
-            <Link to="/jobs">Jobs</Link>
-            <Link to="/candidates">Candidates</Link>
+            <NavLink to="/jobs">Jobs</NavLink>
+            <NavLink to="/candidates">Candidates</NavLink>
           </div>
         </nav>
         <Routes>

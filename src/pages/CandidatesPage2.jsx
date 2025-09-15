@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { List } from "react-window";
+// import { List } from "react-window";
 import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
 import CandidateForm from "../components/CandidateForm";
@@ -8,7 +8,7 @@ const PAGE_SIZE = 20;
 
 const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
 
-export default function CandidatesPage() {
+export default function CandidatesPage2() {
   const [candidates, setCandidates] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);

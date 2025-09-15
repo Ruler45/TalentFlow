@@ -61,8 +61,8 @@ export default function JobModal({ job, onClose, onSave }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg w-full max-w-md p-6">
+    <div className="fixed inset-0 backdrop-blur-lg bg-opacity-50 flex items-center justify-center p-4">
+      <div className=" bg-[#1b263b] rounded-lg w-full max-w-md p-6 text-white">
         <h2 className="text-xl font-bold mb-4">
           {job ? 'Edit Job' : 'Create Job'}
         </h2>
@@ -124,7 +124,7 @@ export default function JobModal({ job, onClose, onSave }) {
               {tags.map((tag) => (
                 <span
                   key={tag}
-                  className="px-2 py-1 bg-gray-100 rounded flex items-center gap-1"
+                  className="px-2 py-1 border bg- rounded flex items-center gap-1"
                 >
                   {tag}
                   <button
@@ -148,7 +148,7 @@ export default function JobModal({ job, onClose, onSave }) {
               <button
                 type="button"
                 onClick={handleAddTag}
-                className="px-4 py-2 bg-gray-100 rounded hover:bg-gray-200"
+                className="px-4 py-2 border rounded hover:scale-110 "
               >
                 Add
               </button>
@@ -159,7 +159,7 @@ export default function JobModal({ job, onClose, onSave }) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 border rounded hover:bg-gray-100"
+              className="px-4 py-2 border rounded hover:bg-gray-100 hover:text-black"
             >
               Cancel
             </button>
