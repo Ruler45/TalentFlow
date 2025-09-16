@@ -28,7 +28,6 @@ export default function CandidateForm({ onSubmit, onCancel }) {
         console.error(err);
       }finally{
         setLoadingJobs(false);
-        console.log(availableJobs.length);
       }
     };
     fetchJobs();

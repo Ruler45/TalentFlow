@@ -130,7 +130,7 @@ const getCandidateById = async function (schema, request, serverReady) {
   };
 };
 
-const updateCandidate = async function (schema, request,serverReady) {
+const updateCandidate = async function (schema, request, serverReady) {
   // Wait for server to be ready
   await serverReady;
 
@@ -160,16 +160,17 @@ const updateCandidate = async function (schema, request,serverReady) {
 
   try {
     // Update Mirage first
-    candidate.update(updatedAttrs);
 
     try {
       // Then update IndexedDB and wait for it to complete
-      await db.candidates.delete(Number(id));
-      await db.candidates.add({ ...updatedAttrs, id: Number(id) });
+
+      await candidate.update(updatedAttrs);
+      // await db.candidates.delete(id);
+      await db.candidates.put({ ...updatedAttrs });
 
       // Function to verify the update with retries
       const verifyUpdate = async (retryCount = 0) => {
-        const verifyDb = await db.candidates.get(Number(id));
+        const verifyDb = await db.candidates.get(id);
 
         if (!verifyDb) {
           throw new Error(
@@ -219,4 +220,4 @@ const updateCandidate = async function (schema, request,serverReady) {
     );
   }
 };
-export { getCandidate, addCandidate, getCandidateById,updateCandidate };
+export { getCandidate, addCandidate, getCandidateById, updateCandidate };

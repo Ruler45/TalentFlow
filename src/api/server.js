@@ -66,8 +66,7 @@ export async function makeServer({ environment = "development" } = {}) {
         stage() {
           return faker.helpers.arrayElement([
             "applied",
-            "screen",
-            "tech",
+            "interview",
             "offer",
             "hired",
             "rejected",
@@ -219,12 +218,6 @@ export async function makeServer({ environment = "development" } = {}) {
         await job.update(attrs);
 
         try {
-          // console.log("Patching job in IndexedDB:", { id, ...job.attrs });
-          // const updatedAttrs = { ...job.attrs, id: id };
-
-          // const jobAtDB = await db.jobs.get(id);
-          // console.log("Job at DB before update:", jobAtDB);
-          // console.log("Updated attributes to store:", updatedAttrs);
 
           await db.jobs.put(job.attrs);
           // console.log("Updated jobs:", await db.jobs.get(id));
