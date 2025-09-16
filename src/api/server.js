@@ -1,8 +1,19 @@
 import { createServer, Model, Factory } from "miragejs";
 import { faker } from "@faker-js/faker";
-import { db } from "../db/db";
 import { hydrateServer } from "./hydrate";
-import { getCandidate, addCandidate,getCandidateById,updateCandidate } from "./controllers/candidateController";
+import {
+  getCandidate,
+  addCandidate,
+  getCandidateById,
+  updateCandidate,
+} from "./controllers/candidateController";
+import {
+  getJobs,
+  getJobsById,
+  addJobs,
+  updateJob,
+  reorderJobs,
+} from "./controllers/jobsController";
 
 // Create a promise that resolves when the server is ready
 let serverReady = null;
@@ -91,208 +102,23 @@ export async function makeServer({ environment = "development" } = {}) {
       // Setup request handling
       this.pretender.handledRequest = function () {};
       // Jobs
-      this.get("/jobs", async (schema, request) => {
-        await serverReady;
+      this.get("/jobs", async (schema, request) =>
+        getJobs(schema, request, serverReady)
+      );
 
-        const page = Number(request.queryParams.page) || 1;
-        const pageSize = Number(request.queryParams.pageSize) || 20;
-        const search = request.queryParams.search || "";
-        const status = request.queryParams.status || "";
-        const sort = request.queryParams.sort || "order";
+      this.post("/jobs", addJobs);
 
-        let jobs = await db.jobs.toArray();
+      this.get("/jobs/:id", async (schema, request) =>
+        getJobsById(schema, request, serverReady)
+      );
 
-        // Apply filters
-        if (search) {
-          const searchLower = search.toLowerCase();
-          jobs = jobs.filter(
-            (job) =>
-              job.attrs.title.toLowerCase().includes(searchLower) ||
-              job.attrs.tags.some((tag) =>
-                tag.toLowerCase().includes(searchLower)
-              )
-          );
-        }
+      this.patch("/jobs/:id", async (schema, request) =>
+        updateJob(schema, request, serverReady)
+      );
 
-        if (status) {
-          jobs = jobs.filter((job) => job.status === status);
-        }
-
-        // Apply sorting
-        jobs.sort((a, b) => {
-          if (sort === "order") {
-            return a.order - b.order;
-          }
-          return a.title.localeCompare(b.title);
-        });
-
-        // Apply pagination
-        const total = jobs.length;
-        const start = (page - 1) * pageSize;
-        const end = start + pageSize;
-        const pageJobs = jobs.slice(start, end);
-
-        // pageJobs.map(j => console.log("Page job:",j.attrs));
-
-        return {
-          jobs: pageJobs.map((j) => j),
-          total,
-          page,
-          pageSize,
-        };
-      });
-
-      this.post("/jobs", async (schema, request) => {
-        let attrs = JSON.parse(request.requestBody);
-
-        if (!attrs.title) {
-          return new Response(400, {}, { error: "Title is required" });
-        }
-
-        attrs.slug =
-          attrs.slug ||
-          attrs.title
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
-            .replace(/(^-|-$)/g, "");
-
-        const existingJob = await db.jobs
-          .where("slug")
-          .equals(attrs.slug)
-          .first();
-        if (existingJob) {
-          return new Response(400, {}, { error: "Slug must be unique" });
-        }
-
-        attrs.status = attrs.status || "active";
-        attrs.tags = attrs.tags || [];
-
-        const last = await db.jobs.orderBy("order").last();
-        attrs.order =
-          typeof attrs.order === "number"
-            ? attrs.order
-            : last
-            ? last.order + 1
-            : 0;
-
-        const id = await db.jobs.add(attrs);
-        return { ...attrs, id };
-      });
-
-      this.get("/jobs/:id", async (schema, request) => {
-        const id = request.params.id;
-        const job = await db.jobs.get(id);
-
-        // console.log(job);
-        
-
-        if (!job) {
-          return new Response(404, {}, { error: "Job not found" });
-        }
-        return job;
-      });
-
-      this.patch("/jobs/:id", async (schema, request) => {
-        // await serverReady;
-        const id = request.params.id;
-        const attrs = JSON.parse(request.requestBody);
-        const job = schema.jobs.find(id);
-
-        // console.log("Received PATCH for job:", id, attrs);
-
-        if (!job) {
-          return new Response(404, {}, { error: "Job not found" });
-        }
-        // Validate title if being updated
-        if (attrs.title !== undefined && !attrs.title) {
-          return new Response(400, {}, { error: "Title is required" });
-        }
-
-        // Check slug uniqueness if being updated
-        if (attrs.slug !== undefined) {
-          const existingJob = schema.jobs.findBy({ slug: attrs.slug });
-          if (existingJob && existingJob.id !== id) {
-            return new Response(400, {}, { error: "Slug must be unique" });
-          }
-        }
-        await job.update(attrs);
-
-        try {
-
-          await db.jobs.put(job.attrs);
-          // console.log("Updated jobs:", await db.jobs.get(id));
-
-          const verifyUpdate = async (retryCount = 0) => {
-            const verifyDb = await db.jobs.get(id);
-
-            if (!verifyDb) {
-              throw new Error("Failed to retrieve updated job from IndexedDB");
-            }
-
-            if (verifyDb.status !== attrs.status) {
-              if (retryCount < 3) {
-                await new Promise((resolve) => setTimeout(resolve, 100));
-                return verifyUpdate(retryCount + 1);
-              }
-              throw new Error("Failed to persist status update after retries");
-            }
-
-            return verifyDb;
-          };
-          // Wait for verification with retries
-          await verifyUpdate();
-        } catch (error) {
-          console.log("IndexedDB job update verification failed:", error);
-        }
-        // console.log(job);
-
-        return job;
-      });
-
-      this.patch("/jobs/:id/reorder", (schema, request) => {
-        const id = request.params.id;
-        const { fromOrder, toOrder } = JSON.parse(request.requestBody);
-
-        // Occasionally return error to test rollback
-        if (Math.random() < 0.1) {
-          return new Response(500, {}, { error: "Random reorder failure" });
-        }
-
-        const job = schema.jobs.find(id);
-        if (!job) {
-          return new Response(404, {}, { error: "Job not found" });
-        }
-
-        // Get all jobs between the old and new positions
-        const allJobs = schema.jobs.all().models;
-        const min = Math.min(fromOrder, toOrder);
-        const max = Math.max(fromOrder, toOrder);
-        const affectedJobs = allJobs.filter(
-          (j) => j.attrs.order >= min && j.attrs.order <= max
-        );
-
-        // Update orders
-        if (fromOrder < toOrder) {
-          // Moving down
-          affectedJobs.forEach((j) => {
-            if (j.id !== id && j.attrs.order <= toOrder) {
-              j.update({ order: j.attrs.order - 1 });
-            }
-          });
-        } else {
-          // Moving up
-          affectedJobs.forEach((j) => {
-            if (j.id !== id && j.attrs.order >= toOrder) {
-              j.update({ order: j.attrs.order + 1 });
-            }
-          });
-        }
-
-        // Update the moved job
-        job.update({ order: toOrder });
-
-        return job;
-      });
+      this.patch("/jobs/:id/reorder", async (schema, request) =>
+        reorderJobs(schema, request, serverReady)
+      );
 
       // Candidates
       this.get("/candidates", getCandidate);
