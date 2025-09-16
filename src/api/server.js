@@ -14,6 +14,12 @@ import {
   updateJob,
   reorderJobs,
 } from "./controllers/jobsController";
+import {
+  getAssessmentByJobId,
+  putAssessmentByJobId,
+  submitAssessmentResponse,
+  getAssessmentResponses,
+} from "./controllers/assessmentsController";
 
 // Create a promise that resolves when the server is ready
 let serverReady = null;
@@ -132,9 +138,10 @@ export async function makeServer({ environment = "development" } = {}) {
       this.patch("/candidates/:id", updateCandidate);
 
       // Assessments
-      this.get("/assessments/:jobId", () => {
-        return { sections: [] }; // stub for now
-      });
+      this.get("/assessments/:jobId", getAssessmentByJobId);
+      this.put("/assessments/:jobId", putAssessmentByJobId);
+      this.post("/assessments/:jobId/submit", submitAssessmentResponse);
+      this.get("/assessments/:jobId/responses", getAssessmentResponses);
     },
   });
 

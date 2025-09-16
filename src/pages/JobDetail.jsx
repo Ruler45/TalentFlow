@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate,Outlet,Link } from "react-router-dom";
 
 export default function JobDetail() {
   const { jobId } = useParams();
@@ -30,7 +30,6 @@ export default function JobDetail() {
     };
 
     fetchJob();
-    
   }, [jobId]);
 
   if (loading) return <div className="p-4">Loading...</div>;
@@ -49,26 +48,44 @@ export default function JobDetail() {
         </button>
       </div>
 
+      {/* Assessement sections */}
+
+      <nav className="flex gap-4 mt-2">
+        <Link to="assessment" className="text-blue-600">
+          Assessment Builder
+        </Link>
+        <Link to="assessment/preview" className="text-blue-600">
+          Preview (Candidate)
+        </Link>
+      </nav>
+
+      <div className="mt-4">
+        <Outlet />
+      </div>
+
       <div className="space-y-6">
         {/* Status Badge */}
         <div>
-          <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-            job.status === 'active' 
-              ? 'bg-green-100 text-green-800'
-              : 'bg-gray-100 text-gray-800'
-          }`}>
+          <span
+            className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+              job.status === "active"
+                ? "bg-green-100 text-green-800"
+                : "bg-gray-100 text-gray-800"
+            }`}
+          >
             Job status: {job.status}
           </span>
         </div>
 
         {/* Tags */}
         <div className="flex flex-wrap gap-2">
-          Job Tags: {job.tags.map(tag => (
+          Job Tags:{" "}
+          {job.tags.map((tag) => (
             <span
               key={tag}
               className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
             >
-              {tag}, 
+              {tag},
             </span>
           ))}
         </div>

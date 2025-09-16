@@ -1,12 +1,14 @@
 import Dexie from "dexie";
 
-export const db = new Dexie("talentflow");
 
+export const db = new Dexie("talentflow");
 db.version(1).stores({
-  jobs: "id",
-  candidates: "id",
-  assessments: "id, jobId"
+  jobs: "++id, title, company, location, description, tags, status, order",
+  candidates: "++id, name, email, stage, timeline, notes",
+  assessments: "++id, jobId, structure, responses"
 });
+
+
 
 // Add hooks for logging
 db.candidates.hook('creating', function (primKey, obj) {
