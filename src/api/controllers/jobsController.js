@@ -119,7 +119,7 @@ export const updateJob = async (schema, request, serverReady) => {
   await job.update(attrs);
 
   try {
-    await db.jobs.put(job.attrs);
+    await db.jobs.put({...job.attrs,attrs});
 
     const verifyUpdate = async (retryCount = 0) => {
       const verifyDb = await db.jobs.get(id);
@@ -128,12 +128,12 @@ export const updateJob = async (schema, request, serverReady) => {
         throw new Error("Failed to retrieve updated job from IndexedDB");
       }
 
-      if (verifyDb.status !== attrs.status) {
+      if (verifyDb.order !== job.attrs.order) {
         if (retryCount < 3) {
           await new Promise((resolve) => setTimeout(resolve, 100));
           return verifyUpdate(retryCount + 1);
         }
-        throw new Error("Failed to persist status update after retries");
+        throw new Error("Failed to persist order update after retries");
       }
 
       return verifyDb;
@@ -163,50 +163,77 @@ export const reorderJobs = async (schema, request, serverReady) => {
     return new Response(404, {}, { error: "Job not found" });
   }
 
-  // Get all jobs between the old and new positions
-  const allJobs = schema.jobs.all().models;
+  // Get all jobs from IndexedDB
+  let allJobs = await db.jobs.toArray();
+  
+  // Sort jobs by order to ensure correct reordering
+  allJobs.sort((a, b) => a.order - b.order);
+  
+  // Find the jobs that need to be reordered
   const min = Math.min(fromOrder, toOrder);
   const max = Math.max(fromOrder, toOrder);
-  const affectedJobs = allJobs.filter(
-    (j) => j.attrs.order >= min && j.attrs.order <= max
-  );
-
-  // Update orders
-  if (fromOrder < toOrder) {
-    // Moving down
-    affectedJobs.forEach((j) => {
-      if (j.id !== id && j.attrs.order <= toOrder) {
-        j.update({ order: j.attrs.order - 1 });
+  
+  // Update orders in all affected jobs
+  const updatedJobs = allJobs.map(dbJob => {
+    // Skip jobs outside the affected range
+    if (dbJob.order < min || dbJob.order > max) {
+      return dbJob;
+    }
+    
+    // This is the job being dragged
+    if (dbJob.id === id) {
+      return { ...dbJob, order: toOrder };
+    }
+    
+    // Moving a job down in order
+    if (fromOrder < toOrder) {
+      if (dbJob.order > fromOrder && dbJob.order <= toOrder) {
+        return { ...dbJob, order: dbJob.order - 1 };
       }
-    });
-  } else {
-    // Moving up
-    affectedJobs.forEach((j) => {
-      if (j.id !== id && j.attrs.order >= toOrder) {
-        j.update({ order: j.attrs.order + 1 });
+    }
+    // Moving a job up in order
+    else if (fromOrder > toOrder) {
+      if (dbJob.order >= toOrder && dbJob.order < fromOrder) {
+        return { ...dbJob, order: dbJob.order + 1 };
       }
-    });
-  }
-
-  // Update the moved job
-  job.update({ order: toOrder });
+    }
+    
+    return dbJob;
+  });
 
   try {
-    await db.jobs.put(job.attrs);
+    // Update all jobs in IndexedDB in a single transaction
+    await db.transaction('rw', db.jobs, async () => {
+      // Clear existing jobs
+      await db.jobs.clear();
+      // Add all updated jobs
+      await db.jobs.bulkAdd(updatedJobs);
+    });
 
     const verifyUpdate = async (retryCount = 0) => {
+      // Verify the dragged job
       const verifyDb = await db.jobs.get(id);
-
       if (!verifyDb) {
         throw new Error("Failed to retrieve updated job from IndexedDB");
       }
-
-      if (verifyDb.status !== toOrder) {
+      
+      if (verifyDb.order !== toOrder) {
         if (retryCount < 3) {
           await new Promise((resolve) => setTimeout(resolve, 100));
           return verifyUpdate(retryCount + 1);
         }
-        throw new Error("Failed to persist status update after retries");
+        throw new Error("Failed to persist order update after retries");
+      }
+
+      // Verify all jobs are in correct order
+      const allJobs = await db.jobs.toArray();
+      const sortedJobs = [...allJobs].sort((a, b) => a.order - b.order);
+      
+      // Check if orders are sequential and unique
+      for (let i = 0; i < sortedJobs.length; i++) {
+        if (i > 0 && sortedJobs[i].order <= sortedJobs[i-1].order) {
+          throw new Error("Jobs are not properly ordered after reordering");
+        }
       }
 
       return verifyDb;

@@ -176,7 +176,7 @@ export default function CandidatesPage2() {
       <div className="p-4 flex flex-wrap items-center justify-between">
         <div>
           Showing {(page - 1) * PAGE_SIZE + 1} to{" "}
-          {Math.min(page * PAGE_SIZE, total)} of {total} jobs
+          {Math.min(page * PAGE_SIZE, total)} of {total} candidates
         </div>
         <div className="flex gap-2">
           <button

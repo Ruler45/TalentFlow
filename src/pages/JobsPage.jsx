@@ -66,7 +66,16 @@ export default function JobsPage() {
     // Optimistic update
     const newJobs = Array.from(jobs);
     const [removed] = newJobs.splice(sourceIndex, 1);
-    newJobs.splice(destIndex, 0, removed);
+    newJobs.splice(destIndex, 0, { ...removed, order: toOrder });
+    
+    // Update orders for jobs between source and destination
+    const start = Math.min(sourceIndex, destIndex);
+    const end = Math.max(sourceIndex, destIndex);
+    for (let i = start; i <= end; i++) {
+      if (i !== destIndex) {
+        newJobs[i] = { ...newJobs[i], order: jobs[i].order };
+      }
+    }
     setJobs(newJobs);
 
     try {
@@ -83,7 +92,7 @@ export default function JobsPage() {
       // Rollback on failure
       setJobs(jobs);
       // Show error notification
-      setError("Failed to reorder job. Please try again. Error:", error);
+      setError(`Failed to reorder job. Please try again. Error: ${error.message}`);
     }
   };
 
