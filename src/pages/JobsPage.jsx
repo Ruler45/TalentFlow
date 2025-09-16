@@ -1,54 +1,38 @@
 import { useEffect, useState } from "react";
 import { Link, Routes, Route } from "react-router-dom";
-import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import JobDetail from "./JobDetail";
 import JobModal from "../components/JobModal";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { useJobs } from "../hooks/useJobs";
+import { PAGE_SIZE } from "../context/jobsContextConfig";
 
-const PAGE_SIZE = 20;
+// const PAGE_SIZE = 20;
 
 export default function JobsPage() {
-  const [jobs, setJobs] = useState([]);
-  const [total, setTotal] = useState(0);
+  const {
+    jobs,
+    total,
+    loading: isLoading,
+    fetchJobs,
+    handleReorder,
+    archiveJob,
+    addJob,
+    updateJob,
+  } = useJobs();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
   const [showJobModal, setShowJobModal] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
 
-  // Fetch jobs with filters
   useEffect(() => {
-    const fetchJobs = async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const url = new URL("/api/jobs", window.location.origin);
-        url.searchParams.set("page", page);
-        url.searchParams.set("pageSize", pageSize);
-        if (search) url.searchParams.set("search", search);
-        if (status) url.searchParams.set("status", status);
-
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Failed to fetch jobs");
-
-        const data = await response.json();
-        setJobs(data.jobs);
-        setTotal(data.total);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchJobs();
-  }, [page, pageSize, search, status]);
+    fetchJobs(page, pageSize, search, status);
+  }, [fetchJobs, page, pageSize, search, status]);
 
   // Handle drag and drop reordering
-  const handleDragEnd = async (result) => {
+  const handleDragEnd = (result) => {
     if (!result.destination) return;
 
     const sourceIndex = result.source.index;
@@ -56,65 +40,17 @@ export default function JobsPage() {
 
     if (sourceIndex === destIndex) return;
 
-    const jobId = result.draggableId;
-    const job = jobs.find((j) => j.id === jobId);
-    const fromOrder = job.order;
-    const toOrder = jobs[destIndex].order;
-
-    console.log("Reordering job:", jobId, "from", fromOrder, "to", toOrder);
-
-    // Optimistic update
-    const newJobs = Array.from(jobs);
-    const [removed] = newJobs.splice(sourceIndex, 1);
-    newJobs.splice(destIndex, 0, { ...removed, order: toOrder });
-    
-    // Update orders for jobs between source and destination
-    const start = Math.min(sourceIndex, destIndex);
-    const end = Math.max(sourceIndex, destIndex);
-    for (let i = start; i <= end; i++) {
-      if (i !== destIndex) {
-        newJobs[i] = { ...newJobs[i], order: jobs[i].order };
-      }
-    }
-    setJobs(newJobs);
-
-    try {
-      const response = await fetch(`/api/jobs/${jobId}/reorder`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fromOrder, toOrder }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to reorder");
-      }
-    } catch (error) {
-      // Rollback on failure
-      setJobs(jobs);
-      // Show error notification
-      setError(`Failed to reorder job. Please try again. Error: ${error.message}`);
-    }
+    handleReorder(sourceIndex, destIndex, result.draggableId).catch((error) => {
+      setError(
+        `Failed to reorder job. Please try again. Error: ${error.message}`
+      );
+    });
   };
 
-  const handleArchiveToggle = async (job) => {
-    // setIsLoading(true);
-    try {
-      const response = await fetch(`/api/jobs/${job.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: job.status === "active" ? "archived" : "active",
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to update job status");
-
-      const updatedJob = await response.json();
-
-      setJobs(jobs.map((j) => (j.id === job.id ? updatedJob.job : j)));
-    } catch (error) {
-      setError("Failed to update job status. Please try again. Error:", error);
-    }
+  const handleArchiveToggle = (job) => {
+    archiveJob(job.id, job.status).catch((error) => {
+      setError("Failed to update job status. Please try again. Error:" + error);
+    });
   };
 
   if (error) {
@@ -138,8 +74,17 @@ export default function JobsPage() {
             }}
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="-ml-1 mr-2 h-5 w-5"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+                clipRule="evenodd"
+              />
             </svg>
             Add New Position
           </button>
@@ -152,8 +97,17 @@ export default function JobsPage() {
           <div className="sm:flex sm:items-center gap-4">
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                <svg
+                  className="h-5 w-5 text-gray-400"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </div>
               <input
@@ -237,21 +191,37 @@ export default function JobsPage() {
         <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-gray-700">
-              Showing <span className="font-medium">{(page - 1) * pageSize + 1}</span> to{" "}
-              <span className="font-medium">{Math.min(page * pageSize, total)}</span> of{" "}
-              <span className="font-medium">{total}</span> positions
+              Showing{" "}
+              <span className="font-medium">{(page - 1) * pageSize + 1}</span>{" "}
+              to{" "}
+              <span className="font-medium">
+                {Math.min(page * pageSize, total)}
+              </span>{" "}
+              of <span className="font-medium">{total}</span> positions
             </p>
           </div>
           <div>
-            <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+            <nav
+              className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+              aria-label="Pagination"
+            >
               <button
                 disabled={page === 1}
                 onClick={() => setPage((p) => p - 1)}
                 className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="sr-only">Previous</span>
-                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                <svg
+                  className="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </button>
               <button
@@ -260,8 +230,17 @@ export default function JobsPage() {
                 className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="sr-only">Next</span>
-                <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                <svg
+                  className="h-5 w-5"
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                    clipRule="evenodd"
+                  />
                 </svg>
               </button>
             </nav>
@@ -285,10 +264,23 @@ export default function JobsPage() {
         </div>
       ) : jobs.length === 0 ? (
         <div className="text-center py-12">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+          <svg
+            className="mx-auto h-12 w-12 text-gray-400"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+            />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No jobs found</h3>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">
+            No jobs found
+          </h3>
           <p className="mt-1 text-sm text-gray-500">
             Get started by creating a new job position
           </p>
@@ -300,8 +292,17 @@ export default function JobsPage() {
               }}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              <svg className="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              <svg
+                className="-ml-1 mr-2 h-5 w-5"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+                  clipRule="evenodd"
+                />
               </svg>
               Add New Position
             </button>
@@ -352,11 +353,13 @@ export default function JobsPage() {
                                 </span>
                               ))}
                             </div>
-                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                              job.status === "active" 
-                                ? "bg-green-100 text-green-800"
-                                : "bg-red-100 text-red-800"
-                            }`}>
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                job.status === "active"
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-red-100 text-red-800"
+                              }`}
+                            >
                               {job.status}
                             </span>
                           </div>
@@ -370,7 +373,12 @@ export default function JobsPage() {
                             className="inline-flex items-center p-1.5 border border-gray-200 rounded-md text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50"
                             title="Edit job"
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-5 w-5"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
                               <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                             </svg>
                           </button>
@@ -381,16 +389,38 @@ export default function JobsPage() {
                                 ? "text-gray-400 hover:text-red-600 hover:border-red-300 hover:bg-red-50"
                                 : "text-gray-400 hover:text-green-600 hover:border-green-300 hover:bg-green-50"
                             }`}
-                            title={job.status === "active" ? "Archive job" : "Unarchive job"}
+                            title={
+                              job.status === "active"
+                                ? "Archive job"
+                                : "Unarchive job"
+                            }
                           >
                             {job.status === "active" ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
                                 <path d="M4 3a2 2 0 100 4h12a2 2 0 100-4H4z" />
-                                <path fillRule="evenodd" d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" clipRule="evenodd" />
+                                <path
+                                  fillRule="evenodd"
+                                  d="M3 8h14v7a2 2 0 01-2 2H5a2 2 0 01-2-2V8zm5 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z"
+                                  clipRule="evenodd"
+                                />
                               </svg>
                             ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-5 w-5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z"
+                                  clipRule="evenodd"
+                                />
                               </svg>
                             )}
                           </button>
@@ -416,30 +446,11 @@ export default function JobsPage() {
           }}
           onSave={async (jobData) => {
             try {
-              const method = selectedJob ? "PATCH" : "POST";
-              const url = selectedJob
-                ? `/api/jobs/${selectedJob.id}`
-                : "/api/jobs";
-
-              const response = await fetch(url, {
-                method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(jobData),
-              });
-
-              if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || "Failed to save job");
-              }
-
-              const savedJob = await response.json();
-
               if (selectedJob) {
-                setJobs(jobs.map((j) => (j.id === savedJob.id ? savedJob : j)));
+                await updateJob(selectedJob.id, jobData);
               } else {
-                setJobs([savedJob, ...jobs]);
+                await addJob(jobData);
               }
-
               setShowJobModal(false);
               setSelectedJob(null);
             } catch (error) {

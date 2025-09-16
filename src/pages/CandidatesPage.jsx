@@ -1,16 +1,18 @@
 import { useEffect, useState } from "react";
-import { List } from "react-window";
+// import { List } from "react-window";
 import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
 import CandidateForm from "../components/CandidateForm";
+import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 const PAGE_SIZE = 20;
 
-const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
+const STAGES = ["applied", "interview", "offer", "hired", "rejected"];
+
+import { useCandidates } from '../hooks/useCandidates';
 
 export default function CandidatesPage() {
-  const [candidates, setCandidates] = useState([]);
-  const [total, setTotal] = useState(0);
+  const { lists, total, fetchCandidates, updateCandidateStage, addCandidate } = useCandidates();
   const [page, setPage] = useState(1);
   const [selectedStage, setSelectedStage] = useState("");
   const [showForm, setShowForm] = useState(false);
@@ -20,53 +22,25 @@ export default function CandidatesPage() {
   }, [selectedStage]);
 
   useEffect(() => {
-    const fetchCandidates = async (retryCount = 0) => {
-      try {
-        const url = new URL("/api/candidates", window.location.origin);
-        url.searchParams.set("page", page);
-        url.searchParams.set("pageSize", PAGE_SIZE);
-        if (selectedStage) {
-          url.searchParams.set("stage", selectedStage);
-        }
+    fetchCandidates(page, selectedStage);
+  }, [fetchCandidates, page, selectedStage]);
 
-        const res = await fetch(url);
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
+  const handleDragEnd = (result) => {
+    const { source, destination } = result;
 
-        const json = await res.json();
+    // dropped outside
+    if (!destination) return;
 
-        // If we got an empty response and server might not be ready, retry
-        if (json.total === 0 && retryCount < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          return fetchCandidates(retryCount + 1);
-        }
+    // If dropped in the same place
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    ) {
+      return;
+    }
 
-        setCandidates(json.candidates || []);
-        setTotal(json.total || 0);
-      } catch (_) {
-        if (retryCount < 2) {
-          console.log("Retrying after error...", _);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          return fetchCandidates(retryCount + 1);
-        }
-      }
-    };
-
-    fetchCandidates();
-  }, [page, selectedStage]);
-
-  const Row = ({ index, style }) => {
-    const c = candidates[index];
-    return (
-      <div style={style} className=" px-2 py-1 flex gap-2 w-fit min-h-fit">
-        <Link to={`${c.id}`} className="text-blue-200 w-3xs h-fit">
-          {c.name}
-        </Link>
-        <span className="text-yellow-600 w-3xs min-h-20 ">{c.jobTitle}</span>
-        <span>{c.stage}</span>
-      </div>
-    );
+    const movedItem = lists[source.droppableId][source.index];
+    updateCandidateStage(movedItem.id, destination.droppableId);
   };
 
   // const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -107,9 +81,16 @@ export default function CandidatesPage() {
       <div className="p-4 flex flex-wrap items-center justify-between">
         <div>
           Showing {(page - 1) * PAGE_SIZE + 1} to{" "}
-          {Math.min(page * PAGE_SIZE, total)} of {total} jobs
+          {Math.min(page * PAGE_SIZE, total)} of {total} candidates
         </div>
         <div className="flex gap-2">
+          <button
+            disabled={page === 1}
+            onClick={() => setPage(1)}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Page 1
+          </button>
           <button
             disabled={page === 1}
             onClick={() => setPage((p) => p - 1)}
@@ -124,6 +105,13 @@ export default function CandidatesPage() {
           >
             Next
           </button>
+          <button
+            disabled={page * PAGE_SIZE >= total}
+            onClick={() => setPage(total / PAGE_SIZE)}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Last Page
+          </button>
         </div>
       </div>
       {/* Add Candidate */}
@@ -131,9 +119,9 @@ export default function CandidatesPage() {
         <div className="fixed inset-0 backdrop-blur-lg bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className=" rounded-lg w-full max-w-md">
             <CandidateForm
-              onSubmit={(candidate) => {
-                setCandidates((prev) => [candidate, ...prev]);
-                setTotal((prev) => prev + 1);
+              onSubmit={async (candidate) => {
+                await addCandidate(candidate);
+                fetchCandidates(page, selectedStage);
                 setShowForm(false);
               }}
               onCancel={() => setShowForm(false)}
@@ -141,17 +129,95 @@ export default function CandidatesPage() {
           </div>
         </div>
       )}
-      {/* List of Candidates */}
-      <div className="flex gap-4 p-8 w-full flex-wrap justify-evenly ">
-        {candidates.map((c) => (
-          
-          <Link to={`${c.id}`} className="flex flex-col  border p-4 rounded-xl w-xs  md:max-w-sm sm:w-xs hover:scale-105 hover:bg-gray-50 transition cursor-pointer" key={c.id}>
-            <span> <b>Name:</b> {c.name} </span>
-            <span> <b>Role:</b> {c.jobTitle} </span>
-            <span> <b>Stage:</b> {c.stage}  </span>
-          </Link>
-        ))}
-      </div>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="w-full px-4 flex gap-4 flex-wrap justify-evenly pb-4 mb-8 min-h-[calc(100vh-300px)]">
+          {Object.entries(lists).map(([droppableId, items]) => (
+            <div className="flex-shrink-0 w-80 flex flex-col h-96 bg-gray-50 rounded-lg shadow-sm" key={droppableId}>
+              <div className="p-3 flex items-center justify-between border-b bg-white rounded-t-lg">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    droppableId === "hired"
+                      ? "bg-green-400"
+                      : droppableId === "rejected"
+                      ? "bg-red-400"
+                      : droppableId === "offer"
+                      ? "bg-yellow-400"
+                      : droppableId === "interview"
+                      ? "bg-blue-400"
+                      : "bg-gray-400"
+                  }`} />
+                  <h3 className="font-semibold capitalize text-gray-900">
+                    {droppableId}
+                  </h3>
+                </div>
+                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
+                  {items.length}
+                </span>
+              </div>
+              
+              <Droppable droppableId={droppableId}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className={`p-2 flex-1 overflow-y-auto transition-colors min-h-[200px]
+                      ${snapshot.isDraggingOver ? "bg-gray-100" : ""}
+                    `}
+                  >
+                    {items.map((item, index) => (
+                      <Draggable
+                        key={item.id}
+                        draggableId={item.id}
+                        index={index}
+                      >
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`group mb-2 rounded-lg ${
+                              snapshot.isDragging
+                                ? "rotate-1 scale-105 shadow-lg bg-white ring-2 ring-blue-400"
+                                : "bg-white hover:shadow-md"
+                            } shadow-sm border border-gray-200 transition-all duration-200`}
+                          >
+                            <Link to={`${item.id}`} className="block p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                                  {item.name}
+                                </div>
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
+                                    #{index + 1}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-600 mb-1">
+                                {item.email}
+                              </div>
+                              {item.jobTitle && (
+                                <div className="text-sm px-2 py-1 bg-gray-50 text-gray-600 rounded mt-2 inline-block">
+                                  {item.jobTitle}
+                                </div>
+                              )}
+                            </Link>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
+                    {items.length === 0 && !snapshot.isDraggingOver && (
+                      <div className="h-24 flex items-center justify-center text-gray-400 text-sm border-2 border-dashed rounded-lg">
+                        Drop candidate here
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Droppable>
+            </div>
+          ))}
+        </div>
+      </DragDropContext>
 
       <Routes>
         <Route path="/:id" element={<CandidateDetail />} />

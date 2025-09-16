@@ -1,6 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import CandidateNotes from "../components/Notes";
+import { useCandidates } from "../hooks/useCandidates";
 
 const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
 
@@ -8,85 +9,31 @@ export default function CandidateDetail() {
   const { id } = useParams();
   const [candidate, setCandidate] = useState(null);
   const [notes, setNotes] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
+  const { updateCandidateStage, fetchCandidateById } = useCandidates();
 
-  // fetch candidate (with timeline)
   useEffect(() => {
-    const fetchCandidate = async (retryCount = 0) => {
+    const loadCandidate = async () => {
       try {
-        setLoading(true);
-        const res = await fetch(`/api/candidates/${id}`);
-
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
-
-        const json = await res.json();
-
-        // If we got no data and haven't retried too many times, retry
-        if ((!json || !json.id) && retryCount < 2) {
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          return fetchCandidate(retryCount + 1);
-        }
-
-        // Check if we need to handle a nested structure
-        const candidateData = json.candidate || json;
-
-        if (!candidateData.id) {
-          throw new Error("Invalid candidate data received");
-        }
-
+        setIsLoading(true);
+        const candidateData = await fetchCandidateById(id);
         setCandidate(candidateData);
-        setLoading(false);
-      } catch (_) {
-        if (retryCount < 2) {
-          console.log("Retrying after error...", _);
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          return fetchCandidate(retryCount + 1);
-        }
-        setLoading(false);
+      } catch (error) {
+        console.error('Error loading candidate:', error);
+      } finally {
+        setIsLoading(false);
       }
     };
 
-    fetchCandidate();
-  }, [id]);
+    loadCandidate();
+  }, [id, fetchCandidateById]);
 
-  // update stage
   const updateStage = async (newStage) => {
     try {
-      const res = await fetch(`/api/candidates/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: newStage }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-
-      const json = await res.json();
-
-      // Check for error response
-      if (json.error) {
-        throw new Error(json.error);
-      }
-
-      // Validate response data shape
-      if (!json || !json.id || !json.stage || typeof json.stage !== "string") {
-        console.error("Invalid response format:", json);
-        throw new Error("Invalid response data format");
-      }
-
-      // Ensure timeline is an array
-      if (!Array.isArray(json.timeline)) {
-        json.timeline = [];
-      }
-
-      console.log("Setting candidate state with:", json);
-      setCandidate(json); // json now includes updated candidate + timeline
+      const updatedCandidate = await updateCandidateStage(id, newStage);
+      setCandidate(prev => ({ ...prev, ...updatedCandidate }));
     } catch (error) {
       console.error("Error updating candidate stage:", error);
-      // Could add error state handling here if needed
     }
   };
 
@@ -102,7 +49,7 @@ export default function CandidateDetail() {
     // await db.candidates.put({ ...candidate, notes: updated });
   };
 
-  if (loading) return <p className="p-4">Loading candidate...</p>;
+  if (isLoading) return <p className="p-4">Loading candidate...</p>;
   if (!candidate) return <p className="p-4">Candidate not found</p>;
 
   return (
