@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import AssessmentForm from "./AssessmentForm";
+import AssessmentForm from "../components/AssessmentForm";
 
 export default function AssessmentFormWrapper() {
   const navigate = useNavigate();
