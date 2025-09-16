@@ -33,9 +33,17 @@ export default function AssessmentForm({ assessment }) {
 
   if (submitted) {
     return (
-      <p className="p-4 text-green-600 font-bold">
-        ✅ Thank you, {candidateName}! Your assessment has been submitted.
-      </p>
+      <div className="p-8 text-center">
+        <div className="w-16 h-16 mx-auto mb-4 bg-green-100 text-green-600 rounded-full flex items-center justify-center">
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+        </div>
+        <h3 className="text-2xl font-bold text-gray-800 mb-2">Assessment Submitted!</h3>
+        <p className="text-gray-600 text-lg">
+          Thank you, {candidateName}! Your responses have been recorded successfully.
+        </p>
+      </div>
     );
   }
 
@@ -45,44 +53,49 @@ export default function AssessmentForm({ assessment }) {
         e.preventDefault();
         submit();
       }}
-      className="p-4"
+      className="p-6 space-y-8"
     >
-      <h3 className="text-lg font-bold mb-4">Assessment</h3>
-
       {/* Candidate Name */}
-      <div className="mb-4">
-        <label className="block font-semibold mb-1">Your Name</label>
+      <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
+        <label className="block text-lg font-medium text-gray-700 mb-3">Your Name</label>
         <input
           type="text"
           value={candidateName}
           onChange={(e) => setCandidateName(e.target.value)}
-          className="border p-2 w-full"
+          className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all"
+          placeholder="Enter your full name"
           required
         />
       </div>
 
       {/* Questions */}
-      {assessment.structure.map((q) => (
-        <div key={q.id} className="mb-4">
-          <label className="block font-semibold mb-1">{q.text}</label>
+      {assessment.structure.map((q, index) => (
+        <div key={q.id} className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+          <div className="flex items-start gap-3 mb-4">
+            <span className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-medium">
+              {index + 1}
+            </span>
+            <label className="block text-lg font-medium text-gray-700">{q.text}</label>
+          </div>
 
           {q.type === "single" &&
             q.options.map((opt) => (
-              <div key={opt}>
+              <div key={opt} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
                 <input
                   type="radio"
                   name={q.id}
                   value={opt}
                   checked={answers[q.id] === opt}
                   onChange={(e) => handleChange(q.id, e.target.value)}
-                />{" "}
-                {opt}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <label className="text-gray-700 cursor-pointer select-none">{opt}</label>
               </div>
             ))}
 
           {q.type === "multi" &&
             q.options.map((opt) => (
-              <div key={opt}>
+              <div key={opt} className="flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
                 <input
                   type="checkbox"
                   value={opt}
@@ -96,8 +109,9 @@ export default function AssessmentForm({ assessment }) {
                         : prev.filter((x) => x !== opt)
                     );
                   }}
-                />{" "}
-                {opt}
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                />
+                <label className="text-gray-700 cursor-pointer select-none">{opt}</label>
               </div>
             ))}
 
@@ -105,7 +119,8 @@ export default function AssessmentForm({ assessment }) {
             <input
               type="text"
               maxLength={q.maxLength}
-              className="border p-1 w-full"
+              placeholder="Enter your answer..."
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all"
               onChange={(e) => handleChange(q.id, e.target.value)}
             />
           )}
@@ -113,7 +128,9 @@ export default function AssessmentForm({ assessment }) {
           {q.type === "long" && (
             <textarea
               maxLength={q.maxLength}
-              className="border p-1 w-full"
+              placeholder="Enter your detailed answer..."
+              rows={4}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all resize-y"
               onChange={(e) => handleChange(q.id, e.target.value)}
             />
           )}
@@ -123,28 +140,41 @@ export default function AssessmentForm({ assessment }) {
               type="number"
               min={q.min}
               max={q.max}
-              className="border p-1"
+              placeholder={`Enter a number (${q.min}-${q.max})`}
+              className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500 outline-none transition-all"
               onChange={(e) => handleChange(q.id, e.target.value)}
             />
           )}
 
           {q.type === "file" && (
-            <input
-              type="file"
-              onChange={(e) =>
-                handleChange(q.id, e.target.files[0]?.name || "")
-              }
-            />
+            <div className="mt-2">
+              <label className="block w-full px-4 py-3 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 cursor-pointer transition-all text-center">
+                <svg className="w-6 h-6 mx-auto mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <span className="text-gray-600">Click to upload or drag and drop</span>
+                <input
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => handleChange(q.id, e.target.files[0]?.name || "")}
+                />
+              </label>
+            </div>
           )}
         </div>
       ))}
 
-      <button
-        type="submit"
-        className="px-4 py-2 bg-green-600 text-white rounded"
-      >
-        Submit
-      </button>
+      <div className="pt-6">
+        <button
+          type="submit"
+          className="w-full px-6 py-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-lg shadow-sm transition-all flex items-center justify-center gap-2"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4M7.835 4.697A9.001 9.001 0 1017.843 15" />
+          </svg>
+          Submit Assessment
+        </button>
+      </div>
     </form>
   );
 }

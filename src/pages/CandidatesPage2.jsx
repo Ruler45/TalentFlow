@@ -225,61 +225,87 @@ export default function CandidatesPage2() {
         </div>
       )}
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="w-full flex justify-evenly flex-wrap mb-8">
+        <div className="w-full px-4 flex gap-4 flex-wrap justify-evenly pb-4 mb-8 min-h-[calc(100vh-300px)]">
           {Object.entries(lists).map(([droppableId, items]) => (
-            <div
-              className="flex flex-col  items-center gap-2"
-              key={droppableId}
-            >
-              <div>{droppableId}</div>
+            <div className="flex-shrink-0 w-80 flex flex-col h-96 bg-gray-50 rounded-lg shadow-sm" key={droppableId}>
+              <div className="p-3 flex items-center justify-between border-b bg-white rounded-t-lg">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${
+                    droppableId === "hired"
+                      ? "bg-green-400"
+                      : droppableId === "rejected"
+                      ? "bg-red-400"
+                      : droppableId === "offer"
+                      ? "bg-yellow-400"
+                      : droppableId === "interview"
+                      ? "bg-blue-400"
+                      : "bg-gray-400"
+                  }`} />
+                  <h3 className="font-semibold capitalize text-gray-900">
+                    {droppableId}
+                  </h3>
+                </div>
+                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
+                  {items.length}
+                </span>
+              </div>
+              
               <Droppable droppableId={droppableId}>
-                {(provided) => (
+                {(provided, snapshot) => (
                   <div
                     ref={provided.innerRef}
                     {...provided.droppableProps}
-                    className={`overflow-auto  p-2 rounded 
-                      ${
-                        droppableId == "hired"
-                          ? "bg-green-400"
-                          : droppableId == "rejected"
-                          ? "bg-red-600"
-                          : droppableId == "offer"
-                          ? "bg-yellow-500"
-                          : "bg-blue-200"
-                      }  
-                      lg:h-96 w-52 md:h-56 h-44`}
+                    className={`p-2 flex-1 overflow-y-auto transition-colors min-h-[200px]
+                      ${snapshot.isDraggingOver ? "bg-gray-100" : ""}
+                    `}
                   >
                     {items.map((item, index) => (
                       <Draggable
-                        key={item.name}
-                        draggableId={item.name}
+                        key={item.id}
+                        draggableId={item.id}
                         index={index}
                       >
                         {(provided, snapshot) => (
-                          <Link to={`${item.id}`}>
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              style={{
-                                userSelect: "none",
-                                padding: 12,
-                                margin: "0 0 8px 0",
-                                borderRadius: 4,
-                                background: snapshot.isDragging
-                                  ? "#263B4A"
-                                  : "#456C86",
-                                color: "white",
-                                ...provided.draggableProps.style,
-                              }}
-                            >
-                              {item.name}
-                            </div>
-                          </Link>
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className={`group mb-2 rounded-lg ${
+                              snapshot.isDragging
+                                ? "rotate-1 scale-105 shadow-lg bg-white ring-2 ring-blue-400"
+                                : "bg-white hover:shadow-md"
+                            } shadow-sm border border-gray-200 transition-all duration-200`}
+                          >
+                            <Link to={`${item.id}`} className="block p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                                  {item.name}
+                                </div>
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
+                                    #{index + 1}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="text-sm text-gray-600 mb-1">
+                                {item.email}
+                              </div>
+                              {item.jobTitle && (
+                                <div className="text-sm px-2 py-1 bg-gray-50 text-gray-600 rounded mt-2 inline-block">
+                                  {item.jobTitle}
+                                </div>
+                              )}
+                            </Link>
+                          </div>
                         )}
                       </Draggable>
                     ))}
                     {provided.placeholder}
+                    {items.length === 0 && !snapshot.isDraggingOver && (
+                      <div className="h-24 flex items-center justify-center text-gray-400 text-sm border-2 border-dashed rounded-lg">
+                        Drop candidate here
+                      </div>
+                    )}
                   </div>
                 )}
               </Droppable>
