@@ -5,6 +5,17 @@ import { seedAssessments } from "../hooks/seedAssessments";
 export async function hydrateServer(server) {
   try {
     console.log("Starting server hydration...");
+    
+    // Get current server data state
+    const serverData = {
+      jobs: server.schema.jobs.all().length,
+      candidates: server.schema.candidates.all().length,
+      assessments: server.schema.assessments.all().length
+    };
+    
+    console.log('Current server data:', serverData);
+
+    // Skip initial data creation here as it will be handled by seeds
 
     await db.open();
 
@@ -24,11 +35,7 @@ export async function hydrateServer(server) {
       console.log("No data in IndexedDB, creating initial data...");
 
       try {
-        // Create initial data
-        server.createList("job", 25);
-        server.createList("candidate", 1000);
-
-        // Get the created data
+        // Get the created data from Mirage
         const jobs = server.schema.jobs.all().models.map((m) => m.attrs);
         const candidates = server.schema.candidates
           .all()

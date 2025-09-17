@@ -26,6 +26,8 @@ let serverReady = null;
 let serverReadyResolve = null;
 
 export async function makeServer({ environment = "development" } = {}) {
+  console.log('Making server with environment:', environment);
+  
   serverReady = new Promise((resolve) => {
     serverReadyResolve = resolve;
   });
@@ -39,10 +41,44 @@ export async function makeServer({ environment = "development" } = {}) {
       assessment: Model,
     },
 
-    // eslint-disable-next-line no-unused-vars
     seeds(server) {
-      // We'll handle seeding in the hydrate function instead
-      // This prevents double-seeding when we have IndexedDB data
+      console.log('Seeding initial data...');
+      
+      // Create exactly 25 jobs
+      const jobs = server.createList("job", 25);
+      
+      // Create exactly 1000 candidates
+      server.createList("candidate", 1000);
+      
+      // Create 2 random assessments
+      const randomJobs = faker.helpers.arrayElements(jobs, 2);
+      randomJobs.forEach(job => {
+        server.schema.assessments.create({
+          jobId: job.id,
+          questions: [
+            {
+              id: '1',
+              text: 'What is your experience with React?',
+              type: 'text',
+              validation: { required: true }
+            },
+            {
+              id: '2',
+              text: 'Years of experience',
+              type: 'single',
+              options: ['0-2', '3-5', '5+'],
+              validation: { required: true }
+            }
+          ],
+          responses: {}
+        });
+      });
+      
+      console.log('Data seeding complete:', {
+        jobs: server.schema.jobs.all().length,
+        candidates: server.schema.candidates.all().length,
+        assessments: server.schema.assessments.all().length
+      });
     },
 
     factories: {
