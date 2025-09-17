@@ -2,6 +2,9 @@
   "name": "talentflow",
   "private": true,
   "version": "0.0.0",
+  "description": "A modern web application designed to streamline the hiring process by managing job listings, candidates, and assessments",
+  "license": "MIT",
+  "author": "Sahin",
   "type": "module",
   "scripts": {
     "dev": "vite",
