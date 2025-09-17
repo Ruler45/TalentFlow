@@ -1,7 +1,7 @@
 import { createServer, Model, Factory } from "miragejs";
 import { faker } from "@faker-js/faker";
 import { hydrateServer } from "./hydrate";
-import { RECRUITMENT_STAGES, getAllStageIds } from "../config/stages";
+import { RECRUITMENT_STAGES} from "../config/stages";
 import {
   getCandidate,
   addCandidate,

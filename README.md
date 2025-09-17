@@ -12,7 +12,7 @@ TalentFlow is a modern web application designed to streamline the hiring process
 * [Getting Started](#getting-started)
 * [Development](#development)
 * [Deployment](#deployment)
-* [Application Features](#application-features)
+* [Feature Details](#feature-details)
 * [Contributing](#contributing)
 
 ## Features
@@ -95,13 +95,13 @@ git clone "https://github.com/Ruler45/TalentFlow.git"
 cd TalentFlow
 ```
 
-2. **Install dependencies**
+1. **Install dependencies**
 
 ```bash
 pnpm install
 ```
 
-3. **Start the development server**
+1. **Start the development server**
 
 ```bash
 pnpm dev
@@ -182,22 +182,22 @@ vercel
 vercel --prod
 ```
 
-## Application Features
+## Feature Details
 
-### Job Management
+### Job Management Features
 
 * Create new job listings with detailed descriptions
 * Track application status and progress
 * Filter and search job listings
 
-### Candidate Management
+### Candidate Management Features
 
 * Add and track candidate information
 * Review candidate applications
 * Add notes and feedback
 * Track candidate progress
 
-### Assessment System
+### Assessment System Features
 
 * Create custom assessments per job
 * Multiple question types:
@@ -207,7 +207,7 @@ vercel --prod
 * Real-time assessment preview
 * Track and review responses
 
-### Data Persistence
+### Data Persistence Features
 
 * Offline-first architecture
 * Local data storage using IndexedDB

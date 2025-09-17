@@ -3,7 +3,7 @@ import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
 import CandidateForm from "../../components/CandidateForm";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { RECRUITMENT_STAGES, getStageColor } from "../../config/stages";
+import { RECRUITMENT_STAGES } from "../../config/stages";
 import { useCandidates } from '../../hooks/useCandidates';
 
 const PAGE_SIZE = 20;
