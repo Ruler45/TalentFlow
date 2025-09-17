@@ -1,30 +1,32 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useAssessments } from "../hooks/useAssessments"
 
 export default function CandidateResponsePage() {
   const { jobId, candidateName } = useParams();
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
+  const { 
+    candidateResponse: data,
+    responseLoading,
+    loadCandidateResponse
+  } = useAssessments();
 
   // Decode the candidate name from URL
   const decodedCandidateName = decodeURIComponent(candidateName);
 
   useEffect(() => {
-    async function fetchResponse() {
-      const data = await fetch(`/api/assessments/${jobId}/responses`).then(
-        (res) => res.json()
-      );
-      setData(data);
-    }
-    fetchResponse();
-  }, [jobId]);
+    loadCandidateResponse(jobId, decodedCandidateName);
+  }, [jobId, decodedCandidateName, loadCandidateResponse]);
 
-  if (!data) return <p>Loading candidate response...</p>;
+  if (responseLoading) return <p>Loading candidate response...</p>;
+
+  if (!data) return <p>Failed to load assessment data.</p>;
 
   const { responses, structure } = data;
+  if (!structure || structure.length === 0) return <p>Assessment structure not found.</p>;
+  
   const answers = responses[decodedCandidateName];
-
-  if (!answers) return <p>Candidate not found.</p>;
+  if (!answers) return <p>Candidate responses not found.</p>;
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">

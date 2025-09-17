@@ -1,33 +1,21 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useAssessments } from "../hooks/useAssessments"
 import AssessmentForm from "../components/AssessmentForm";
 
 export default function AssessmentFormWrapper() {
   const navigate = useNavigate();
   const { jobId } = useParams();
-  const [assessment, setAssessment] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { 
+    currentAssessment: assessment,
+    assessmentLoading: loading,
+    loadAssessmentByJobId
+  } = useAssessments();
 
   useEffect(() => {
     if (!jobId) return;
-
-    setLoading(true);
-    fetch(`/api/assessments/${jobId}`)
-      .then(async (res) => {
-        if (!res.ok) {
-          throw new Error(`Failed to fetch assessment for job ${jobId}`);
-        }
-        return res.json();
-      })
-      .then((data) => {
-        setAssessment(data);
-      })
-      .catch((err) => {
-        console.error(err);
-        setAssessment(null);
-      })
-      .finally(() => setLoading(false));
-  }, [jobId]);
+    loadAssessmentByJobId(jobId);
+  }, [jobId, loadAssessmentByJobId]);
 
   if (!jobId || isNaN(Number(jobId))) {
     return <p>Invalid job ID</p>;
@@ -38,13 +26,13 @@ export default function AssessmentFormWrapper() {
       <div className="flex items-center justify-between mb-8">
         <h2 className="text-3xl font-bold text-gray-800">Assessment</h2>
         <button
-          onClick={() => navigate(`/jobs/${jobId}`)}
+          onClick={() => navigate(-1)}
           className="px-4 py-2 text-gray-600 hover:text-gray-800 flex items-center gap-2 rounded-lg hover:bg-gray-100 transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          Back to Job
+          Back
         </button>
       </div>
 

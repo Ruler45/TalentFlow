@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { db } from "../db/db";
+import { useEffect } from "react";
+import { useAssessments } from "../hooks/useAssessments"
 
 const questionTypes = ["single", "multi", "short", "long", "numeric", "file"];
 
@@ -144,69 +144,47 @@ const PreviewQuestion = ({ question, questions, answers = {} }) => {
 };
 
 export default function AssessmentBuilder({ jobId }) {
-  const [questions, setQuestions] = useState([]);
-  const [previewMode, setPreviewMode] = useState(false);
+  const {
+    currentQuestions: questions,
+    previewMode,
+    addQuestion,
+    updateQuestion,
+    deleteQuestion,
+    togglePreviewMode,
+    loadAssessmentQuestions,
+    addAssessment,
+    updateAssessment,
+    getAssessmentByJobId
+  } = useAssessments();
 
-  const addQuestion = () => {
-    setQuestions([
-      ...questions,
-      {
-        id: crypto.randomUUID(),
-        type: "",
-        text: "New Question",
-        required: false,
-        options: [],
-        validation: {
-          required: false,
-          min: null,
-          max: null,
-          maxLength: null,
-        },
-        conditionalLogic: {
-          enabled: false,
-          dependsOn: null,
-          condition: {
-            type: "equals", // equals, notEquals, includes, notIncludes
-            value: "",
-          },
-        },
-      },
-    ]);
-  };
-
-  const updateQuestion = (id, updates) => {
-    setQuestions((prev) =>
-      prev.map((q) => (q.id === id ? { ...q, ...updates } : q))
-    );
-  };
-
-  const deleteQuestion = (id) => {
-    setQuestions((prev) => prev.filter((q) => q.id !== id));
-  };
+  useEffect(() => {
+    if (jobId) {
+      loadAssessmentQuestions(jobId);
+    }
+  }, [jobId, loadAssessmentQuestions]);
 
   const saveAssessment = async () => {
-    const assessment = await db.assessments
-      .where("jobId")
-      .equals(jobId)
-      .first();
-    if (assessment) {
-      if (
-        prompt(
-          "Assessment already exists for this job. Do you want to update it? (y/n)"
-        ) === "y"
-      ) {
-        await db.assessments.update(assessment.id, { structure: questions });
-        alert("Assessment updated!");
-      }
-      return;
-    }
+    try {
+      const assessmentData = {
+        jobId,
+        questions,
+        lastUpdated: new Date().toISOString()
+      };
 
-    await db.assessments.put({
-      jobId,
-      structure: questions,
-      responses: {},
-    });
-    alert("Assessment saved!");
+      const existingAssessment = getAssessmentByJobId(jobId);
+      if (existingAssessment) {
+        if (confirm("Assessment already exists for this job. Do you want to update it?")) {
+          await updateAssessment(existingAssessment.id, assessmentData);
+          alert("Assessment updated successfully!");
+        }
+      } else {
+        await addAssessment(assessmentData);
+        alert("Assessment saved successfully!");
+      }
+    } catch (error) {
+      console.error("Error saving assessment:", error);
+      alert("Failed to save assessment. Please try again.");
+    }
   };
 
   return (
@@ -215,7 +193,7 @@ export default function AssessmentBuilder({ jobId }) {
         <h3 className="text-2xl font-bold text-gray-800">Assessment Builder</h3>
         <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
           <button
-            onClick={() => setPreviewMode(false)}
+            onClick={togglePreviewMode}
             className={`px-4 py-2 rounded-md font-medium transition-all ${
               !previewMode
                 ? "bg-white text-gray-800 shadow-sm"
@@ -225,7 +203,7 @@ export default function AssessmentBuilder({ jobId }) {
             Edit
           </button>
           <button
-            onClick={() => setPreviewMode(true)}
+            onClick={togglePreviewMode}
             className={`px-4 py-2 rounded-md font-medium transition-all ${
               previewMode
                 ? "bg-white text-gray-800 shadow-sm"
