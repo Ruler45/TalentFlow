@@ -1,5 +1,5 @@
 import { useContext, useEffect } from 'react';
-import { JobsContext } from '../context/jobsContextConfig';
+import { JobsContext } from '../context/JobContext/jobsContextConfig';
 
 export default function JobModal() {
   const {

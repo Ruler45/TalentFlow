@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
-import { useAssessments } from "../hooks/useAssessments"
-import AssessmentForm from "../components/AssessmentForm";
+import { useAssessments } from "../../hooks/useAssessments"
+import AssessmentForm from "../../components/AssessmentForm";
 
 export default function AssessmentFormWrapper() {
   const navigate = useNavigate();

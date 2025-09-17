@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams, useNavigate, Outlet, Link } from "react-router-dom";
-import { useJobs } from "../hooks/useJobs";
+import { useJobs } from "../../hooks/useJobs";
 
 export default function JobDetail() {
   const { jobId } = useParams();

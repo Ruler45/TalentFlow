@@ -7,16 +7,16 @@ import {
 } from "react-router-dom";
 import "./styles/scrollbar.css";
 import { AppProvider } from "./context/AppProvider";
-import { JobsProvider } from "./context/JobsContext";
-import JobsPage from "./pages/JobsPage";
-import CandidateDetail from "./pages/CandidateDetail";
-import JobDetail from "./pages/JobDetail";
-import CandidatesPage from "./pages/CandidatesPage";
-import AssessmentBuilderWrapper from "./pages/AssessmentBuilderWrapper";
-import AssessmentFormWrapper from "./pages/AssessmentFormWrapper";
-import AssessmentsPage from "./pages/AssessmentsPage";
+import { JobsProvider } from "./context/JobContext/JobsContext";
+import JobsPage from "./pages/jobs/JobsPage";
+import CandidateDetail from "./pages/candidates/CandidateDetail";
+import JobDetail from "./pages/jobs/JobDetail";
+import CandidatesPage from "./pages/candidates/CandidatesPage";
+import AssessmentBuilderWrapper from "./pages/assessments/AssessmentBuilderWrapper";
+import AssessmentFormWrapper from "./pages/assessments/AssessmentFormWrapper";
+import AssessmentsPage from "./pages/assessments/AssessmentsPage";
 import AssessmentResponsesPage from "./components/AssessmentResponsesPage";
-import CandidateResponsePage from "./pages/CandidateResponsePage";
+import CandidateResponsePage from "./pages/assessments/CandidateResponsePage";
 import HomePage from "./pages/HomePage";
 import Footer from "./components/Footer";
 

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAssessments } from "../hooks/useAssessments"
+import { useAssessments } from "../../hooks/useAssessments"
 
 export default function CandidateResponsePage() {
   const { jobId, candidateName } = useParams();

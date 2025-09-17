@@ -2,14 +2,14 @@ import { useEffect, useState } from "react";
 // import { List } from "react-window";
 import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
-import CandidateForm from "../components/CandidateForm";
+import CandidateForm from "../../components/CandidateForm";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 const PAGE_SIZE = 20;
 
 const STAGES = ["applied", "interview", "offer", "hired", "rejected"];
 
-import { useCandidates } from '../hooks/useCandidates';
+import { useCandidates } from '../../hooks/useCandidates';
 
 export default function CandidatesPage() {
   const { lists, total, fetchCandidates, updateCandidateStage, addCandidate } = useCandidates();

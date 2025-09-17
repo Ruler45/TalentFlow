@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
-import AssessmentBuilder from "../components/AssessmentBuilder";
+import AssessmentBuilder from "../../components/AssessmentBuilder";
 
 export default function AssessmentBuilderWrapper() {
   const navigate = useNavigate();

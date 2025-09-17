@@ -1,7 +1,7 @@
 import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import CandidateNotes from "../components/Notes";
-import { useCandidates } from "../hooks/useCandidates";
+import CandidateNotes from "../../components/Notes";
+import { useCandidates } from "../../hooks/useCandidates";
 
 const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
 

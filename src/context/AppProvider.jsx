@@ -1,7 +1,7 @@
 import { AuthProvider } from './AuthContext';
-import { JobsProvider } from './JobsContext';
-import { AssessmentProvider } from './AssessmentContext';
-import { CandidateProvider } from './CandidateContext';
+import { JobsProvider } from './JobContext/JobsContext';
+import { AssessmentProvider } from './AssessmentContexts/AssessmentContext';
+import { CandidateProvider } from './CandidateContext/CandidateContext';
 
 export function AppProvider({ children }) {
   return (

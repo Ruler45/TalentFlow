@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, Routes, Route } from "react-router-dom";
-import JobDetail from "./JobDetail";
-import JobModal from "../components/JobModal";
+import JobDetail from "../jobs/JobDetail";
+import JobModal from "../../components/JobModal";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
-import { useJobs } from "../hooks/useJobs";
-import { PAGE_SIZE } from "../context/jobsContextConfig";
+import { useJobs } from "../../hooks/useJobs";
+import { PAGE_SIZE } from "../../context/JobContext/jobsContextConfig";
 
 // const PAGE_SIZE = 20;
 
@@ -17,8 +17,7 @@ export default function JobsPage() {
     fetchJobs,
     handleReorder,
     archiveJob,
-    handleModalOpen,
-    handleModalClose
+    handleModalOpen
   } = useJobs();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(PAGE_SIZE);

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { db } from '../db/db';
+import { db } from '../../db/db';
 import { PAGE_SIZE, STAGES } from './candidateContextConfig';
 import { CandidateContext } from './candidateContextInstance';
 
