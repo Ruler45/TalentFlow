@@ -13,19 +13,19 @@ export default function JobsPage() {
     jobs,
     total,
     loading: isLoading,
+    showJobModal,
     fetchJobs,
     handleReorder,
     archiveJob,
-    addJob,
-    updateJob,
+    handleModalOpen,
+    handleModalClose
   } = useJobs();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(PAGE_SIZE);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [showJobModal, setShowJobModal] = useState(false);
-  const [selectedJob, setSelectedJob] = useState(null);
+  // Modal state moved to context
 
   useEffect(() => {
     fetchJobs(page, pageSize, search, status);
@@ -69,8 +69,7 @@ export default function JobsPage() {
         <div className="mt-4 sm:mt-0">
           <button
             onClick={() => {
-              setSelectedJob(null);
-              setShowJobModal(true);
+              handleModalOpen(null);
             }}
             className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
@@ -286,10 +285,7 @@ export default function JobsPage() {
           </p>
           <div className="mt-6">
             <button
-              onClick={() => {
-                setSelectedJob(null);
-                setShowJobModal(true);
-              }}
+              onClick={() => handleModalOpen(null)}
               className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               <svg
@@ -317,7 +313,14 @@ export default function JobsPage() {
                 ref={provided.innerRef}
                 className="space-y-2"
               >
-                {jobs.map((job, index) => (
+                {(jobs || [])
+                  .filter(job => job && 
+                    job.id && 
+                    job.title && 
+                    typeof job.title === 'string' && 
+                    job.title.trim() !== ''
+                  )
+                  .map((job, index) => (
                   <Draggable
                     key={job.id}
                     draggableId={job.id}
@@ -344,7 +347,7 @@ export default function JobsPage() {
                           </Link>
                           <div className="mt-1 flex items-center gap-4">
                             <div className="flex flex-wrap gap-2">
-                              {job.tags.map((tag) => (
+                              {(job.tags || []).map((tag) => (
                                 <span
                                   key={tag}
                                   className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
@@ -366,10 +369,7 @@ export default function JobsPage() {
                         </div>
                         <div className="flex items-center gap-3">
                           <button
-                            onClick={() => {
-                              setSelectedJob(job);
-                              setShowJobModal(true);
-                            }}
+                            onClick={() => handleModalOpen(job)}
                             className="inline-flex items-center p-1.5 border border-gray-200 rounded-md text-gray-400 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50"
                             title="Edit job"
                           >
@@ -437,28 +437,7 @@ export default function JobsPage() {
       )}
 
       {/* Job Modal */}
-      {showJobModal && (
-        <JobModal
-          job={selectedJob}
-          onClose={() => {
-            setShowJobModal(false);
-            setSelectedJob(null);
-          }}
-          onSave={async (jobData) => {
-            try {
-              if (selectedJob) {
-                await updateJob(selectedJob.id, jobData);
-              } else {
-                await addJob(jobData);
-              }
-              setShowJobModal(false);
-              setSelectedJob(null);
-            } catch (error) {
-              setError(error.message);
-            }
-          }}
-        />
-      )}
+      {showJobModal && <JobModal />}
 
       <Routes>
         <Route path=":jobId" element={<JobDetail />} />

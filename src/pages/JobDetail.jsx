@@ -1,36 +1,16 @@
-import { useEffect, useState } from "react";
-import { useParams, useNavigate,Outlet,Link } from "react-router-dom";
+import { useEffect } from "react";
+import { useParams, useNavigate, Outlet, Link } from "react-router-dom";
+import { useJobs } from "../hooks/useJobs";
 
 export default function JobDetail() {
   const { jobId } = useParams();
   const navigate = useNavigate();
-  const [job, setJob] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { loading, error, selectedJob: job, fetchJobById, clearSelectedJob } = useJobs();
 
   useEffect(() => {
-    const fetchJob = async () => {
-      try {
-        const response = await fetch(`/api/jobs/${jobId}`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            throw new Error("Job not found");
-          }
-          throw new Error("Failed to fetch job");
-        }
-
-        const data = await response.json();
-        setJob(data);
-        setError(null);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchJob();
-  }, [jobId]);
+    fetchJobById(jobId);
+    return () => clearSelectedJob();
+  }, [jobId, fetchJobById, clearSelectedJob]);
 
   if (loading) return <div className="p-4">Loading...</div>;
   if (error) return <div className="p-4 text-red-600">{error}</div>;

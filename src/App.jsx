@@ -7,6 +7,7 @@ import {
 } from "react-router-dom";
 import "./styles/scrollbar.css";
 import { AppProvider } from "./context/AppProvider";
+import { JobsProvider } from "./context/JobsContext";
 import JobsPage from "./pages/JobsPage";
 import CandidateDetail from "./pages/CandidateDetail";
 import JobDetail from "./pages/JobDetail";
@@ -24,7 +25,8 @@ export default function App() {
     <div className="min-h-screen bg-gray-50">
       <Router>
         <AppProvider>
-          <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm z-50">
+          <JobsProvider>
+            <nav className="fixed top-0 left-0 right-0 bg-white shadow-sm z-50">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between h-16">
                 <div className="flex items-center">
@@ -120,6 +122,7 @@ export default function App() {
             </Routes>
           </div>
           <Footer />
+          </JobsProvider>
         </AppProvider>
       </Router>
     </div>

@@ -1,13 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useContext, useEffect } from 'react';
+import { JobsContext } from '../context/jobsContextConfig';
 
-export default function JobModal({ job, onClose, onSave }) {
-  const [title, setTitle] = useState(job?.title || '');
-  const [slug, setSlug] = useState(job?.slug || '');
-  const [description, setDescription] = useState(job?.description || '');
-  const [location, setLocation] = useState(job?.location || '');
-  const [tags, setTags] = useState(job?.tags || []);
-  const [tagInput, setTagInput] = useState('');
-  const [errors, setErrors] = useState({});
+export default function JobModal() {
+  const {
+    selectedJob: job,
+    formData: { title, slug, description, location, tags, tagInput, errors },
+    handleModalClose,
+    handleInputChange,
+    handleTagInputChange,
+    handleTagAdd,
+    handleTagRemove,
+    addJob,
+    updateJob
+  } = useContext(JobsContext);
 
   // Generate slug from title
   useEffect(() => {
@@ -16,48 +21,57 @@ export default function JobModal({ job, onClose, onSave }) {
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
-      setSlug(generatedSlug);
+      handleInputChange({ target: { name: 'slug', value: generatedSlug } });
     }
-  }, [title, slug, job]);
+  }, [job, title, slug, handleInputChange]);
 
-  const validate = () => {
-    const newErrors = {};
-    if (!title.trim()) {
-      newErrors.title = 'Title is required';
-    }
-    if (!slug.trim()) {
-      newErrors.slug = 'Slug is required';
-    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug)) {
-      newErrors.slug = 'Slug must contain only lowercase letters, numbers, and hyphens';
-    }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
 
-    onSave({
-      title,
-      slug,
-      description,
-      location,
-      tags,
+    // Client-side validation
+    const errors = {};
+    if (!title?.trim()) {
+      errors.title = 'Title is required';
+    }
+    if (!slug?.trim()) {
+      errors.slug = 'Slug is required';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      handleInputChange({ target: { name: 'errors', value: errors } });
+      return;
+    }
+    
+    const jobData = {
+      title: title.trim(),
+      slug: slug.trim(),
+      description: description?.trim() || '',
+      location: location?.trim() || '',
+      tags: tags?.filter(tag => tag && typeof tag === 'string') || [],
       status: job?.status || 'active',
-    });
-  };
+    };
 
-  const handleAddTag = (e) => {
-    e.preventDefault();
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput('');
+    try {
+      if (job) {
+        // console.log("Updating job with ID:", job.id, "Data:", job);
+        
+        await updateJob(job.id, jobData);
+      } else {
+        await addJob(jobData);
+      }
+      handleModalClose();
+    } catch (error) {
+      console.error('Error saving job:', error);
+      // Show the error in the form
+      handleInputChange({
+        target: {
+          name: 'errors',
+          value: {
+            submit: error.message || 'Failed to save job. Please try again.'
+          }
+        }
+      });
     }
-  };
-
-  const handleRemoveTag = (tagToRemove) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
   };
 
   return (
@@ -68,7 +82,7 @@ export default function JobModal({ job, onClose, onSave }) {
             {job ? 'Edit Job Position' : 'Create New Position'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleModalClose}
             className="text-gray-400 hover:text-gray-600 transition-colors"
             aria-label="Close modal"
           >
@@ -85,8 +99,9 @@ export default function JobModal({ job, onClose, onSave }) {
             </label>
             <input
               type="text"
+              name="title"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={handleInputChange}
               className={`w-full px-3 py-2 bg-white border ${
                 errors.title ? 'border-red-500 ring-red-100' : 'border-gray-300'
               } rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
@@ -108,8 +123,9 @@ export default function JobModal({ job, onClose, onSave }) {
             </label>
             <input
               type="text"
+              name="slug"
               value={slug}
-              onChange={(e) => setSlug(e.target.value)}
+              onChange={handleInputChange}
               className={`w-full px-3 py-2 bg-white border ${
                 errors.slug ? 'border-red-500 ring-red-100' : 'border-gray-300'
               } rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
@@ -130,8 +146,9 @@ export default function JobModal({ job, onClose, onSave }) {
               Description
             </label>
             <textarea
+              name="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={handleInputChange}
               className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               rows="4"
               placeholder="Enter job description, requirements, and responsibilities..."
@@ -144,8 +161,9 @@ export default function JobModal({ job, onClose, onSave }) {
             </label>
             <input
               type="text"
+              name="location"
               value={location}
-              onChange={(e) => setLocation(e.target.value)}
+              onChange={handleInputChange}
               className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="e.g., Remote, New York, NY"
             />
@@ -164,7 +182,7 @@ export default function JobModal({ job, onClose, onSave }) {
                   {tag}
                   <button
                     type="button"
-                    onClick={() => handleRemoveTag(tag)}
+                    onClick={() => handleTagRemove(tag)}
                     className="ml-1.5 text-blue-600 hover:text-blue-800"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
@@ -178,19 +196,19 @@ export default function JobModal({ job, onClose, onSave }) {
               <input
                 type="text"
                 value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
+                onChange={handleTagInputChange}
                 className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g., React, TypeScript, 5+ years"
                 onKeyPress={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleAddTag(e);
+                    handleTagAdd();
                   }
                 }}
               />
               <button
                 type="button"
-                onClick={handleAddTag}
+                onClick={handleTagAdd}
                 className="px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 border border-transparent rounded-lg hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
               >
                 Add Skill
@@ -198,23 +216,35 @@ export default function JobModal({ job, onClose, onSave }) {
             </div>
           </div>
 
-          <div className="flex justify-end items-center gap-3 pt-6 border-t">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
-              {job ? 'Save Changes' : 'Create Position'}
-            </button>
+          <div className="flex flex-col gap-4">
+            {errors.submit && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-sm text-red-600 flex items-center">
+                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {errors.submit}
+                </p>
+              </div>
+            )}
+            <div className="flex justify-end items-center gap-3 pt-6 border-t">
+              <button
+                type="button"
+                onClick={handleModalClose}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+                {job ? 'Save Changes' : 'Create Position'}
+              </button>
+            </div>
           </div>
         </form>
       </div>

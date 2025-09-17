@@ -65,43 +65,83 @@ export async function hydrateServer(server) {
         const candidates = await db.candidates.toArray();
         const assessments = await db.assessments.toArray();
 
-        // console.log(jobs);
+        console.log("Data structure samples:", {
+          job: jobs.length > 0 ? jobs[0] : null,
+          candidate: candidates.length > 0 ? candidates[0] : null,
+          assessment: assessments.length > 0 ? assessments[0] : null
+        });
 
         // Clear existing data and recreate collections
         await server.db.emptyData();
 
-        // Create collections one by one to maintain ID integrity
+        // Sanitize and create jobs
         for (const job of jobs) {
-          const attrs = { ...job };
-          delete attrs.id; // Let Mirage handle the ID
-          server.create("job", attrs);
+          // Create a clean object with only the necessary properties
+          const cleanJob = {
+            title: job.title || '',
+            description: job.description || '',
+            location: job.location || '',
+            status: job.status || 'active',
+            slug: job.slug || '',
+            order: typeof job.order === 'number' ? job.order : 0,
+            tags: Array.isArray(job.tags) ? [...job.tags] : [], // Create a new array to avoid reference issues
+          };
+          server.create("job", cleanJob);
         }
-        // console.log(server.db._collections[0]);
 
+        // Sanitize and create candidates
         for (const candidate of candidates) {
-          const attrs = { ...candidate };
-          delete attrs.id; // Let Mirage handle the ID
-          server.create("candidate", attrs);
+          const cleanCandidate = {
+            name: candidate.name || '',
+            email: candidate.email || '',
+            phone: candidate.phone || '',
+            status: candidate.status || 'pending',
+            skills: Array.isArray(candidate.skills) ? [...candidate.skills] : [],
+            experience: candidate.experience || '',
+            education: candidate.education || '',
+            jobId: candidate.jobId || null
+          };
+          server.create("candidate", cleanCandidate);
         }
 
+        // Sanitize and create assessments
         for (const assessment of assessments) {
-          const attrs = { ...assessment };
-          delete attrs.id;
-          server.create("assessment", attrs);
+          const cleanAssessment = {
+            jobId: assessment.jobId || null,
+            questions: Array.isArray(assessment.questions) ? assessment.questions.map(q => ({
+              text: q.text || '',
+              type: q.type || 'text',
+              options: Array.isArray(q.options) ? [...q.options] : [],
+              required: Boolean(q.required)
+            })) : []
+          };
+          server.create("assessment", cleanAssessment);
         }
+
+        // Verify the data was loaded correctly
+        const loadedJobs = server.schema.jobs.all().models;
+        const loadedCandidates = server.schema.candidates.all().models;
+        const loadedAssessments = server.schema.assessments.all().models;
 
         console.log("Data loaded into Mirage:", {
-          jobs: jobs.length,
-          candidates: candidates.length,
-          assessments: assessments.length,
+          jobs: loadedJobs.length,
+          candidates: loadedCandidates.length,
+          assessments: loadedAssessments.length,
         });
 
-        console.log("Hydration complete.");
+        // Verify data integrity
+        if (loadedJobs.length !== jobs.length ||
+            loadedCandidates.length !== candidates.length ||
+            loadedAssessments.length !== assessments.length) {
+          throw new Error("Data integrity check failed: Mismatch in loaded records count");
+        }
+
+        console.log("Hydration complete with data verification.");
 
         return {
-          jobs: jobs.length,
-          candidates: candidates.length,
-          assessments: assessments.length,
+          jobs: loadedJobs.length,
+          candidates: loadedCandidates.length,
+          assessments: loadedAssessments.length,
         };
       } catch (error) {
         console.error("Error loading data from IndexedDB:", error);
