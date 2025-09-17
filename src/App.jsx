@@ -19,6 +19,7 @@ import AssessmentResponsesPage from "./components/AssessmentResponsesPage";
 import CandidateResponsePage from "./pages/assessments/CandidateResponsePage";
 import HomePage from "./pages/HomePage";
 import Footer from "./components/Footer";
+import DataManagement from "./components/DataManagement";
 
 export default function App() {
   return (
@@ -87,6 +88,18 @@ export default function App() {
                   >
                     Assessments
                   </NavLink>
+                  <NavLink
+                    to="/data"
+                    className={({ isActive }) =>
+                      `px-3 py-2 rounded-md text-sm font-medium transition-colors duration-150 ${
+                        isActive
+                          ? "text-blue-600 bg-blue-50"
+                          : "text-gray-600 hover:text-blue-600 hover:bg-gray-50"
+                      }`
+                    }
+                  >
+                    Data Management
+                  </NavLink>
                 </div>
               </div>
             </div>
@@ -119,6 +132,7 @@ export default function App() {
                 path="/assessments/:jobId/responses/:candidateName"
                 element={<CandidateResponsePage />}
               />
+              <Route path="/data" element={<DataManagement />} />
             </Routes>
           </div>
           <Footer />

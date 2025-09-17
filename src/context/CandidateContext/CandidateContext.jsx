@@ -80,14 +80,30 @@ export function CandidateProvider({ children }) {
   const updateCandidate = async (id, candidateData) => {
     setLoading(true);
     try {
-      await db.candidates.update(id, {
-        ...candidateData,
-        updatedAt: new Date().toISOString()
+      // Send update to API
+      const res = await fetch(`/api/candidates/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...candidateData,
+          updatedAt: new Date().toISOString()
+        })
       });
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      // Get fresh data to ensure consistency
+      const updatedCandidate = await fetchCandidateById(id);
+      
+      // Update local state with fresh data
       setCandidates(prev => prev.map(candidate => 
-        candidate.id === id ? { ...candidate, ...candidateData } : candidate
+        candidate.id === id ? updatedCandidate : candidate
       ));
       setError(null);
+      
+      return updatedCandidate;
     } catch (err) {
       console.error('Error updating candidate:', err);
       setError('Failed to update candidate');
@@ -131,62 +147,71 @@ export function CandidateProvider({ children }) {
     });
   };
 
-  const updateCandidateStatus = async (id, status) => {
-    return updateCandidate(id, { status });
-  };
 
   const updateCandidateStage = async (id, newStage) => {
     try {
+      setLoading(true);
+
+      // Get the current state from backend
+      const currentCandidate = await fetchCandidateById(id);
+      
+      if (!currentCandidate) {
+        throw new Error("Candidate not found");
+      }
+
+      // Prepare the update payload with new stage and timeline entry
+      const updatePayload = {
+        stage: newStage,
+        // Let the server handle the timeline entry to ensure consistency
+        updatedAt: new Date().toISOString()
+      };
+
+      // Send update to backend API
       const res = await fetch(`/api/candidates/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: newStage }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const json = await res.json();
+      // Get the fresh data to ensure consistency
+      const freshData = await fetchCandidateById(id);
 
-      if (json.error) {
-        throw new Error(json.error);
+      if (!freshData) {
+        throw new Error("Failed to fetch updated candidate data");
       }
 
-      if (!json || !json.id || !json.stage || typeof json.stage !== "string") {
-        console.error("Invalid response format:", json);
-        throw new Error("Invalid response data format");
-      }
-
-      if (!Array.isArray(json.timeline)) {
-        json.timeline = [];
-      }
-
-      // Update local state
-      setCandidates(prev => prev.map(candidate => 
-        candidate.id === id ? { ...candidate, stage: newStage } : candidate
+      // Update all local state with fresh data
+      setCandidates(prev => prev.map(c => 
+        c.id === id ? freshData : c
       ));
 
-      // Update lists
+      // Update lists with fresh data
       setLists(prev => {
         const updatedLists = { ...prev };
-        // Remove from old stage list
+        // Remove from all lists first
         Object.keys(updatedLists).forEach(stage => {
-          updatedLists[stage] = updatedLists[stage].filter(c => c.id !== id);
+          updatedLists[stage] = Array.isArray(updatedLists[stage])
+            ? updatedLists[stage].filter(c => c.id !== id)
+            : [];
         });
         // Add to new stage list
-        const candidate = candidates.find(c => c.id === id);
-        if (candidate) {
-          updatedLists[newStage] = [...updatedLists[newStage], { ...candidate, stage: newStage }];
-        }
+        updatedLists[newStage] = Array.isArray(updatedLists[newStage])
+          ? [...updatedLists[newStage], freshData]
+          : [freshData];
         return updatedLists;
       });
 
-      return json;
+      return freshData;
     } catch (err) {
       console.error("Error updating candidate stage:", err);
       setError("Failed to update candidate stage");
       throw err;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -206,29 +231,43 @@ export function CandidateProvider({ children }) {
 
   const fetchCandidateById = useCallback(async (id, retryCount = 0) => {
     try {
+      setLoading(true);
+      
+      // First try to get from IndexedDB
+      const dbId = id;
+      const dbCandidate = await db.candidates.get(dbId);
+      
+      // Then fetch from API
       const res = await fetch(`/api/candidates/${id}`);
 
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const json = await res.json();
+      const apiData = await res.json();
+      const apiCandidate = apiData.candidate || apiData;
 
-      // If we got no data and haven't retried too many times, retry
-      if ((!json || !json.id) && retryCount < 2) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        return fetchCandidateById(id, retryCount + 1);
+      if (!apiCandidate.id) {
+        throw new Error("Invalid candidate data received from API");
       }
 
-      // Check if we need to handle a nested structure
-      const candidateData = json.candidate || json;
+      // Merge data, preferring IndexedDB for local state (stage, timeline, notes)
+      // but taking other fields from API
+      const mergedCandidate = {
+        ...apiCandidate,
+        stage: dbCandidate?.stage || apiCandidate.stage,
+        timeline: dbCandidate?.timeline || apiCandidate.timeline || [],
+        notes: dbCandidate?.notes || apiCandidate.notes || []
+      };
 
-      if (!candidateData.id) {
-        throw new Error("Invalid candidate data received");
-      }
+      // Update IndexedDB with merged data to maintain consistency
+      await db.candidates.put({
+        ...mergedCandidate,
+        id: dbId
+      });
 
       setError(null);
-      return candidateData;
+      return mergedCandidate;
     } catch (err) {
       if (retryCount < 2) {
         console.log("Retrying after error...", err);
@@ -238,8 +277,10 @@ export function CandidateProvider({ children }) {
       setError('Failed to fetch candidate');
       console.error('Error fetching candidate:', err);
       throw err;
+    } finally {
+      setLoading(false);
     }
-  }, []); // empty dependency array since it doesn't use any external values
+  }, []);
 
   // Load candidates when the component mounts
   useEffect(() => {
@@ -257,7 +298,6 @@ export function CandidateProvider({ children }) {
     deleteCandidate,
     getCandidateById,
     filterCandidates,
-    updateCandidateStatus,
     updateCandidateStage,
     addCandidateNote,
     fetchCandidateById,

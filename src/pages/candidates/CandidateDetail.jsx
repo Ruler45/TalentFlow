@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import CandidateNotes from "../../components/Notes";
 import { useCandidates } from "../../hooks/useCandidates";
 
-const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
+const STAGES = ["applied", "screen", "interview", "offer", "hired", "rejected"];
 
 export default function CandidateDetail() {
   const { id } = useParams();
@@ -29,11 +29,45 @@ export default function CandidateDetail() {
   }, [id, fetchCandidateById]);
 
   const updateStage = async (newStage) => {
+    const previousState = { ...candidate };
+    
     try {
+      // Create new timeline entry
+      const newTimelineEntry = {
+        status: `Stage updated to ${newStage}`,
+        date: new Date().toISOString()
+      };
+
+      // Create the update payload
+      const updatePayload = {
+        ...candidate,
+        stage: newStage,
+        timeline: [...(candidate.timeline || []), newTimelineEntry]
+      };
+      
+      // Update local state optimistically
+      setCandidate(updatePayload);
+      
+      // Send to backend
       const updatedCandidate = await updateCandidateStage(id, newStage);
-      setCandidate(prev => ({ ...prev, ...updatedCandidate }));
+      
+      if (!updatedCandidate) {
+        throw new Error('Failed to update candidate');
+      }
+
+      // Fetch fresh data to ensure consistency
+      const freshData = await fetchCandidateById(id);
+      
+      if (!freshData) {
+        throw new Error('Failed to fetch updated candidate data');
+      }
+
+      // Update with fresh data
+      setCandidate(freshData);
     } catch (error) {
       console.error("Error updating candidate stage:", error);
+      // Revert to previous state on error
+      setCandidate(previousState);
     }
   };
 

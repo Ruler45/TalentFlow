@@ -50,24 +50,95 @@ export async function makeServer({ environment = "development" } = {}) {
       // Create exactly 1000 candidates
       server.createList("candidate", 1000);
       
-      // Create 2 random assessments
-      const randomJobs = faker.helpers.arrayElements(jobs, 2);
+      // Create 3 comprehensive assessments
+      const randomJobs = faker.helpers.arrayElements(jobs, 3);
       randomJobs.forEach(job => {
         server.schema.assessments.create({
           jobId: job.id,
           questions: [
             {
               id: '1',
-              text: 'What is your experience with React?',
-              type: 'text',
-              validation: { required: true }
+              text: 'What motivates you to apply for this position?',
+              type: 'long_text',
+              validation: { required: true, maxLength: 500 }
             },
             {
               id: '2',
-              text: 'Years of experience',
-              type: 'single',
-              options: ['0-2', '3-5', '5+'],
+              text: 'Years of relevant experience',
+              type: 'numeric',
+              validation: { required: true, min: 0, max: 40 }
+            },
+            {
+              id: '3',
+              text: 'Select your primary programming languages',
+              type: 'multi',
+              options: ['JavaScript', 'Python', 'Java', 'C++', 'Ruby', 'Go'],
               validation: { required: true }
+            },
+            {
+              id: '4',
+              text: 'Have you worked with React?',
+              type: 'single',
+              options: ['Yes', 'No'],
+              validation: { required: true }
+            },
+            {
+              id: '5',
+              text: 'If yes, describe your React experience',
+              type: 'long_text',
+              validation: { required: false },
+              conditionalLogic: {
+                dependsOn: '4',
+                showIf: 'Yes'
+              }
+            },
+            {
+              id: '6',
+              text: 'Rate your expertise in the following areas (1-5)',
+              type: 'numeric',
+              validation: { required: true, min: 1, max: 5 }
+            },
+            {
+              id: '7',
+              text: 'Describe a challenging project you worked on',
+              type: 'long_text',
+              validation: { required: true, minLength: 100 }
+            },
+            {
+              id: '8',
+              text: 'Select your preferred work environment',
+              type: 'single',
+              options: ['Remote', 'Hybrid', 'Office'],
+              validation: { required: true }
+            },
+            {
+              id: '9',
+              text: 'Upload your portfolio (PDF)',
+              type: 'file',
+              validation: { required: false, allowedTypes: ['pdf'] }
+            },
+            {
+              id: '10',
+              text: 'Are you willing to travel?',
+              type: 'single',
+              options: ['Yes', 'No', 'Occasionally'],
+              validation: { required: true }
+            },
+            {
+              id: '11',
+              text: 'If yes, what percentage of time?',
+              type: 'numeric',
+              validation: { required: false, min: 0, max: 100 },
+              conditionalLogic: {
+                dependsOn: '10',
+                showIf: 'Yes'
+              }
+            },
+            {
+              id: '12',
+              text: 'Additional comments or questions',
+              type: 'long_text',
+              validation: { required: false }
             }
           ],
           responses: {}
@@ -138,45 +209,84 @@ export async function makeServer({ environment = "development" } = {}) {
     routes() {
       this.namespace = "api";
 
-      // Remove random timing for debugging
-      this.timing = 0;
+      // Add artificial latency (200-1200ms)
+      this.timing = () => faker.number.int({ min: 200, max: 1200 });
 
-      // Setup request handling
-      this.pretender.handledRequest = function () {};
+      // Simulate 5-10% error rate on write operations
+      const shouldError = () => faker.number.float({ min: 0, max: 1 }) <= 0.075; // 7.5% error rate
+
+      this.pretender.handledRequest = function (verb, path) {
+        console.log(`${verb} ${path}`, { 
+          timing: this.timing,
+          errored: shouldError() && (verb !== 'GET')
+        });
+      };
+
+      // Error simulation middleware for write operations
+      const simulateErrors = (schema, request) => {
+        const isWrite = !['GET'].includes(request.method);
+        if (isWrite && shouldError()) {
+          return new Response(500, {}, { 
+            error: 'Simulated server error',
+            message: 'This is a simulated error for testing error handling (5-10% error rate)'
+          });
+        }
+        return null;
+      };
       // Jobs
       this.get("/jobs", async (schema, request) =>
         getJobs(schema, request, serverReady)
       );
 
-      this.post("/jobs", addJobs);
+      this.post("/jobs", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || addJobs(schema, request);
+      });
 
       this.get("/jobs/:id", async (schema, request) =>
         getJobsById(schema, request, serverReady)
       );
 
-      this.patch("/jobs/:id", async (schema, request) =>
-        updateJob(schema, request, serverReady)
-      );
+      this.patch("/jobs/:id", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || updateJob(schema, request, serverReady);
+      });
 
-      this.patch("/jobs/:id/reorder", async (schema, request) =>
-        reorderJobs(schema, request, serverReady)
-      );
+      this.patch("/jobs/:id/reorder", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || reorderJobs(schema, request, serverReady);
+      });
 
       // Candidates
       this.get("/candidates", getCandidate);
 
       this.get("/candidates/:id", getCandidateById);
 
-      this.post("/candidates", addCandidate);
+      this.post("/candidates", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || addCandidate(schema, request);
+      });
 
       this.passthrough();
 
-      this.patch("/candidates/:id", updateCandidate);
+      this.patch("/candidates/:id", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || updateCandidate(schema, request);
+      });
 
       // Assessments
       this.get("/assessments/:jobId", getAssessmentByJobId);
-      this.put("/assessments/:jobId", putAssessmentByJobId);
-      this.post("/assessments/:jobId/submit", submitAssessmentResponse);
+      
+      this.put("/assessments/:jobId", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || putAssessmentByJobId(schema, request);
+      });
+      
+      this.post("/assessments/:jobId/submit", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || submitAssessmentResponse(schema, request);
+      });
+      
       this.get("/assessments/:jobId/responses", getAssessmentResponses);
     },
   });
