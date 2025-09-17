@@ -38,7 +38,7 @@ export function CandidateProvider({ children }) {
       
       // Organize candidates by stage
       const grouped = STAGES.reduce((acc, stage) => {
-        acc[stage] = (json.candidates || []).filter((c) => c.stage === stage);
+        acc[stage.id] = (json.candidates || []).filter((c) => c.stage === stage.id);
         return acc;
       }, {});
       setLists(grouped);

@@ -1,4 +1,5 @@
 import { db } from "../../db/db";
+import { RECRUITMENT_STAGES, isValidStage } from "../../config/stages";
 
 const getCandidate = async function (schema, request, serverReady) {
   // Wait for server to be ready
@@ -75,11 +76,22 @@ const addCandidate = async function (schema, request, serverReady) {
 
   let attrs = JSON.parse(request.requestBody);
 
+  // Validate stage
+  if (attrs.stage && !isValidStage(attrs.stage)) {
+    return new Response(400, {}, {
+      error: "Invalid stage",
+      details: `Stage must be one of: ${RECRUITMENT_STAGES.map(s => s.id).join(', ')}`
+    });
+  }
+
+  // Ensure default stage is 'applied'
+  attrs.stage = attrs.stage || "applied";
+
   // Add initial timeline entry
   attrs.timeline = [
     {
       date: new Date().toISOString(),
-      status: attrs.stage || "applied",
+      status: attrs.stage,
     },
   ];
 
@@ -199,6 +211,14 @@ const updateCandidate = async function (schema, request, serverReady) {
 
   const id = request.params.id;
   let attrs = JSON.parse(request.requestBody);
+
+  // Validate stage if it's being updated
+  if (attrs.stage && !isValidStage(attrs.stage)) {
+    return new Response(400, {}, {
+      error: "Invalid stage",
+      details: `Stage must be one of: ${RECRUITMENT_STAGES.map(s => s.id).join(', ')}`
+    });
+  }
 
   // Check IndexedDB first
   const dbCandidate = await db.candidates.get(id);

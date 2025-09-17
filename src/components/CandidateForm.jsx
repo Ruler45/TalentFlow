@@ -1,7 +1,5 @@
-import { useEffect } from "react";
-import { useState } from "react";
-
-const STAGES = ["applied", "screen", "tech", "offer", "hired", "rejected"];
+import { useEffect, useState } from "react";
+import { RECRUITMENT_STAGES } from "../config/stages";
 
 export default function CandidateForm({ onSubmit, onCancel }) {
   const [formData, setFormData] = useState({
@@ -130,9 +128,9 @@ export default function CandidateForm({ onSubmit, onCancel }) {
           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2.5 bg-white
                    focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
         >
-          {STAGES.map((stage) => (
-            <option key={stage} value={stage} className="capitalize">
-              {stage}
+          {RECRUITMENT_STAGES.map((stage) => (
+            <option key={stage.id} value={stage.id} className="capitalize">
+              {stage.label}
             </option>
           ))}
         </select>

@@ -1,10 +1,53 @@
 // src/components/AssessmentForm.jsx
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 
 export default function AssessmentForm({ assessment }) {
   const [candidateName, setCandidateName] = useState("");
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
+
+  // Evaluate conditional logic for a question
+  const evaluateCondition = useCallback((question) => {
+    if (!question.conditionalLogic?.enabled) return true;
+    
+    const { conditions = [], operator = 'AND' } = question.conditionalLogic;
+    if (!conditions.length) return true;
+
+    const results = conditions.map(condition => {
+      const answer = answers[condition.dependsOn];
+      if (answer === undefined) return false;
+
+      switch (condition.type) {
+        case 'equals':
+          return answer === condition.value;
+        case 'notEquals':
+          return answer !== condition.value;
+        case 'includes':
+          return Array.isArray(answer) 
+            ? answer.includes(condition.value)
+            : String(answer).includes(condition.value);
+        case 'notIncludes':
+          return Array.isArray(answer)
+            ? !answer.includes(condition.value)
+            : !String(answer).includes(condition.value);
+        case 'greaterThan':
+          return Number(answer) > Number(condition.value);
+        case 'lessThan':
+          return Number(answer) < Number(condition.value);
+        default:
+          return false;
+      }
+    });
+
+    return operator === 'AND'
+      ? results.every(result => result)
+      : results.some(result => result);
+  }, [answers]);
+
+  // Get visible questions based on current answers
+  const visibleQuestions = useMemo(() => {
+    return assessment.structure.filter(evaluateCondition);
+  }, [assessment.structure, evaluateCondition]);
 
   const handleChange = (id, value) => {
     setAnswers({ ...answers, [id]: value });
@@ -69,11 +112,11 @@ export default function AssessmentForm({ assessment }) {
       </div>
 
       {/* Questions */}
-      {assessment.structure.map((q, index) => (
+      {visibleQuestions.map((q) => (
         <div key={q.id} className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
           <div className="flex items-start gap-3 mb-4">
             <span className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-medium">
-              {index + 1}
+              {assessment.structure.indexOf(q) + 1}
             </span>
             <label className="block text-lg font-medium text-gray-700">{q.text}</label>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { Snackbar, Alert } from "@mui/material";
 import { JobsContext, PAGE_SIZE } from "./jobsContextConfig";
 
 export { JobsContext };
@@ -9,6 +10,7 @@ export function JobsProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showJobModal, setShowJobModal] = useState(false);
+  const [toast, setToast] = useState({ open: false, message: '', severity: 'info' });
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
@@ -132,28 +134,62 @@ export function JobsProvider({ children }) {
   };
 
   const updateJob = async (id, jobData) => {
+    if (!id) {
+      throw new Error('Job ID is required for update');
+    }
+
     setLoading(true);
+    let originalJobs = null;
+
     try {
+      // Store current state for potential rollback
+      originalJobs = [...jobs];
+
       const response = await fetch(`/api/jobs/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(jobData),
       });
 
-      if (!response.ok)
+      if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
       const updatedJob = await response.json();
-    //   console.log("Updated job from server:", updatedJob);
       
-      const processedJob = { ...updatedJob.job, id: updatedJob.job.id.toString() };
+      if (!updatedJob?.job?.id) {
+        throw new Error('Invalid response: Missing job data');
+      }
+
+      const processedJob = {
+        id: updatedJob.job.id.toString(),
+        title: updatedJob.job.title || '',
+        slug: updatedJob.job.slug || '',
+        description: updatedJob.job.description || '',
+        location: updatedJob.job.location || '',
+        tags: Array.isArray(updatedJob.job.tags) ? updatedJob.job.tags : [],
+        status: updatedJob.job.status || 'active',
+        order: typeof updatedJob.job.order === 'number' ? updatedJob.job.order : 0
+      };
       
-      setJobs((prev) =>
-        prev.map((job) => (job.id === id.toString() ? processedJob : job))
-      );
+      setJobs(prev => {
+        const jobIndex = prev.findIndex(j => j.id === id.toString());
+        if (jobIndex === -1) {
+          console.warn(`Job with ID ${id} not found in current state`);
+          return prev;
+        }
+        const newJobs = [...prev];
+        newJobs[jobIndex] = processedJob;
+        return newJobs;
+      });
+
       setError(null);
       return updatedJob;
     } catch (err) {
+      // Rollback on error if we have the original state
+      if (originalJobs) {
+        setJobs(originalJobs);
+      }
       setError(err.message);
       throw err;
     } finally {
@@ -185,6 +221,9 @@ export function JobsProvider({ children }) {
     const fromOrder = job.order;
     const toOrder = jobs[destIndex].order;
 
+    // Store the original jobs array for potential rollback
+    const originalJobs = [...jobs];
+
     // Optimistic update
     const newJobs = Array.from(jobs);
     const [removed] = newJobs.splice(sourceIndex, 1);
@@ -202,16 +241,52 @@ export function JobsProvider({ children }) {
 
     try {
       await reorderJob(jobId, fromOrder, toOrder);
+      setToast({
+        open: true,
+        message: 'Job position updated successfully',
+        severity: 'success'
+      });
     } catch (error) {
       // Rollback on failure
-      setJobs(jobs);
-      throw error;
+      setJobs(originalJobs);
+      setToast({
+        open: true,
+        message: error.message || 'Failed to update job position. Changes have been reverted.',
+        severity: 'error'
+      });
+      setError(error.message);
     }
   };
 
   const archiveJob = async (jobId, currentStatus) => {
-    const newStatus = currentStatus === "active" ? "archived" : "active";
-    return updateJob(jobId, { status: newStatus });
+    try {
+      if (!jobId) {
+        throw new Error('Job ID is required');
+      }
+
+      const existingJob = jobs.find(j => j.id === jobId);
+      if (!existingJob) {
+        throw new Error('Job not found');
+      }
+
+      const newStatus = currentStatus === "active" ? "archived" : "active";
+      const result = await updateJob(jobId, { status: newStatus });
+      
+      setToast({
+        open: true,
+        message: `Job ${newStatus === 'active' ? 'unarchived' : 'archived'} successfully`,
+        severity: 'success'
+      });
+
+      return result;
+    } catch (err) {
+      setToast({
+        open: true,
+        message: `Failed to ${currentStatus === 'active' ? 'archive' : 'unarchive'} job: ${err.message}`,
+        severity: 'error'
+      });
+      throw err;
+    }
   };
 
 
@@ -340,5 +415,22 @@ export function JobsProvider({ children }) {
     handleTagRemove
   };
 
-  return <JobsContext.Provider value={value}>{children}</JobsContext.Provider>;
+  return (
+    <JobsContext.Provider value={value}>
+      <Snackbar
+        open={toast.open}
+        autoHideDuration={4000}
+        onClose={() => setToast(prev => ({ ...prev, open: false }))}
+      >
+        <Alert
+          onClose={() => setToast(prev => ({ ...prev, open: false }))}
+          severity={toast.severity}
+          sx={{ width: '100%' }}
+        >
+          {toast.message}
+        </Alert>
+      </Snackbar>
+      {children}
+    </JobsContext.Provider>
+  );
 }

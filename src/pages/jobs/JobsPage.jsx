@@ -39,25 +39,76 @@ export default function JobsPage() {
 
     if (sourceIndex === destIndex) return;
 
+    // Get references to the dragged element for visual feedback
+    const draggedElement = document.querySelector(`[data-rbd-draggable-id="${result.draggableId}"]`);
+    if (draggedElement) {
+      draggedElement.style.transition = 'transform 0.5s ease-in-out';
+    }
+
     handleReorder(sourceIndex, destIndex, result.draggableId).catch((error) => {
+      // Add visual shake animation on failure
+      if (draggedElement) {
+        draggedElement.style.transform = 'translateX(10px)';
+        setTimeout(() => {
+          draggedElement.style.transform = 'translateX(-10px)';
+          setTimeout(() => {
+            draggedElement.style.transform = 'translateX(0)';
+          }, 100);
+        }, 100);
+      }
       setError(
         `Failed to reorder job. Please try again. Error: ${error.message}`
       );
     });
   };
 
-  const handleArchiveToggle = (job) => {
-    archiveJob(job.id, job.status).catch((error) => {
-      setError("Failed to update job status. Please try again. Error:" + error);
-    });
+  const handleArchiveToggle = async (job) => {
+    if (!job || !job.id) {
+      setError("Invalid job data");
+      return;
+    }
+
+    try {
+      await archiveJob(job.id, job.status);
+      // Clear any existing error when successful
+      setError("");
+    } catch (error) {
+      setError(`Failed to update job status. Please try again. Error: ${error.message || 'Unknown error'}`);
+    }
   };
 
-  if (error) {
-    return <div className="p-4 text-red-600">{error}</div>;
-  }
+  // Display error as a notification banner if present
+  const ErrorBanner = error ? (
+    <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+      <div className="flex">
+        <div className="flex-shrink-0">
+          <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <div className="ml-3">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+        <div className="ml-auto pl-3">
+          <div className="-mx-1.5 -my-1.5">
+            <button
+              onClick={() => setError("")}
+              className="inline-flex rounded-md p-1.5 text-red-500 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+            >
+              <span className="sr-only">Dismiss</span>
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {ErrorBanner}
       <div className="mb-8 sm:flex sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Job Positions</h1>
@@ -331,7 +382,7 @@ export default function JobsPage() {
                         ref={provided.innerRef}
                         {...provided.draggableProps}
                         {...provided.dragHandleProps}
-                        className={`p-4 bg-white border hover:cursor-grab rounded-lg shadow-sm flex items-center justify-between gap-4 group ${
+                        className={`p-4 bg-white border hover:cursor-grab rounded-lg shadow-sm flex items-center justify-between gap-4 group transition-all duration-300 ease-in-out transform ${
                           job.status === "archived"
                             ? "bg-gray-50 border-red-200"
                             : "hover:border-blue-200 hover:shadow-md"

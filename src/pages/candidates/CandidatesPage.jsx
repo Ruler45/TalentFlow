@@ -1,21 +1,19 @@
 import { useEffect, useState } from "react";
-// import { List } from "react-window";
 import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
 import CandidateForm from "../../components/CandidateForm";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
+import { RECRUITMENT_STAGES, getStageColor } from "../../config/stages";
+import { useCandidates } from '../../hooks/useCandidates';
 
 const PAGE_SIZE = 20;
-
-const STAGES = ["applied", "interview", "offer", "hired", "rejected"];
-
-import { useCandidates } from '../../hooks/useCandidates';
 
 export default function CandidatesPage() {
   const { lists, total, fetchCandidates, updateCandidateStage, addCandidate } = useCandidates();
   const [page, setPage] = useState(1);
   const [selectedStage, setSelectedStage] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [draggingId, setDraggingId] = useState(null);
 
   useEffect(() => {
     setPage(1);
@@ -25,7 +23,12 @@ export default function CandidatesPage() {
     fetchCandidates(page, selectedStage);
   }, [fetchCandidates, page, selectedStage]);
 
+  const handleDragStart = (start) => {
+    setDraggingId(start.draggableId);
+  };
+
   const handleDragEnd = (result) => {
+    setDraggingId(null);
     const { source, destination } = result;
 
     // dropped outside
@@ -62,9 +65,9 @@ export default function CandidatesPage() {
               className="border px-2 py-1 rounded"
             >
               <option value="">All Stages</option>
-              {STAGES.map((stage) => (
-                <option key={stage} value={stage}>
-                  {stage}
+              {RECRUITMENT_STAGES.map((stage) => (
+                <option key={stage.id} value={stage.id}>
+                  {stage.label}
                 </option>
               ))}
             </select>
@@ -129,99 +132,104 @@ export default function CandidatesPage() {
           </div>
         </div>
       )}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="w-full px-4 flex gap-4 flex-wrap justify-evenly pb-4 mb-8 min-h-[calc(100vh-300px)]">
-          {Object.entries(lists).map(([droppableId, items]) => (
-            <div className="flex-shrink-0 w-80 flex flex-col h-96 bg-gray-50 rounded-lg shadow-sm" key={droppableId}>
-              <div className="p-3 flex items-center justify-between border-b bg-white rounded-t-lg">
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${
-                    droppableId === "hired"
-                      ? "bg-green-400"
-                      : droppableId === "rejected"
-                      ? "bg-red-400"
-                      : droppableId === "offer"
-                      ? "bg-yellow-400"
-                      : droppableId === "interview"
-                      ? "bg-blue-400"
-                      : "bg-gray-400"
-                  }`} />
-                  <h3 className="font-semibold capitalize text-gray-900">
-                    {droppableId}
-                  </h3>
-                </div>
-                <span className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
-                  {items.length}
-                </span>
-              </div>
-              
-              <Droppable droppableId={droppableId}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`p-2 flex-1 overflow-y-auto transition-colors min-h-[200px]
-                      ${snapshot.isDraggingOver ? "bg-gray-100" : ""}
-                    `}
-                  >
-                    {items.map((item, index) => (
-                      <Draggable
-                        key={item.id}
-                        draggableId={item.id}
-                        index={index}
+      <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+          <div className="w-full px-4 flex gap-4 flex-wrap justify-evenly pb-4 mb-8 min-h-[calc(100vh-300px)]">
+            {RECRUITMENT_STAGES.map((stage) => {
+              const items = lists[stage.id] || [];
+              return (
+                <div 
+                  className="flex-shrink-0 w-80 flex flex-col h-96 bg-gray-50 rounded-lg shadow-sm transition-all duration-200 ease-in-out hover:shadow-md" 
+                  key={stage.id}
+                >
+                  <div className={`p-3 flex items-center justify-between border-b bg-white rounded-t-lg`}>
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2 h-2 rounded-full bg-${stage.color}-400`} />
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900">{stage.label}</span>
+                        <span className="text-xs text-gray-500">{stage.description}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl" role="img" aria-label={stage.label}>{stage.icon}</span>
+                      <span className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
+                        {items.length}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Droppable droppableId={stage.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className={`p-2 flex-1 overflow-y-auto transition-all duration-200 ease-in-out
+                          ${snapshot.isDraggingOver ? `bg-${stage.color}-50 ring-2 ring-${stage.color}-200` : ""}`}
                       >
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                            className={`group mb-2 rounded-lg ${
-                              snapshot.isDragging
-                                ? "rotate-1 scale-105 shadow-lg bg-white ring-2 ring-blue-400"
-                                : "bg-white hover:shadow-md"
-                            } shadow-sm border border-gray-200 transition-all duration-200`}
+                        {items.map((item, index) => (
+                          <Draggable
+                            key={item.id}
+                            draggableId={item.id}
+                            index={index}
                           >
-                            <Link to={`${item.id}`} className="block p-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
-                                  {item.name}
-                                </div>
-                                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
-                                    #{index + 1}
-                                  </span>
-                                </div>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className={`group mb-2 rounded-lg transition-all duration-200 ease-in-out
+                                  ${snapshot.isDragging 
+                                    ? "rotate-1 scale-105 shadow-lg bg-white ring-2 ring-blue-400" 
+                                    : "bg-white hover:shadow-md"}
+                                  ${draggingId === item.id ? "opacity-50" : "opacity-100"}
+                                  shadow-sm border border-gray-200`}
+                              >
+                                <Link to={`${item.id}`} className="block p-3">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                                      {item.name}
+                                    </div>
+                                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <span className="text-xs bg-gray-100 px-2 py-1 rounded-full text-gray-600">
+                                        #{index + 1}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="text-sm text-gray-600 mb-1">
+                                    {item.email}
+                                  </div>
+                                  {item.jobTitle && (
+                                    <div className="text-sm px-2 py-1 bg-gray-50 text-gray-600 rounded mt-2 inline-block">
+                                      {item.jobTitle}
+                                    </div>
+                                  )}
+                                </Link>
                               </div>
-                              <div className="text-sm text-gray-600 mb-1">
-                                {item.email}
-                              </div>
-                              {item.jobTitle && (
-                                <div className="text-sm px-2 py-1 bg-gray-50 text-gray-600 rounded mt-2 inline-block">
-                                  {item.jobTitle}
-                                </div>
-                              )}
-                            </Link>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        {items.length === 0 && !snapshot.isDraggingOver && (
+                          <div className="h-24 flex flex-col items-center justify-center text-gray-400 text-sm border-2 border-dashed rounded-lg">
+                            <span className="text-3xl mb-2" role="img" aria-label={stage.label}>
+                              {stage.icon}
+                            </span>
+                            <p>Drop candidate here</p>
+                            <p className="text-xs mt-1">No candidates in {stage.label.toLowerCase()}</p>
                           </div>
                         )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                    {items.length === 0 && !snapshot.isDraggingOver && (
-                      <div className="h-24 flex items-center justify-center text-gray-400 text-sm border-2 border-dashed rounded-lg">
-                        Drop candidate here
                       </div>
                     )}
-                  </div>
-                )}
-              </Droppable>
-            </div>
-          ))}
-        </div>
-      </DragDropContext>
+                  </Droppable>
+                </div>
+              );
+            })}
+          </div>
+        </DragDropContext>
 
-      <Routes>
-        <Route path="/:id" element={<CandidateDetail />} />
-      </Routes>
-    </div>
-  );
+        <Routes>
+          <Route path="/:id" element={<CandidateDetail />} />
+        </Routes>
+      </div>
+    );
+
 }

@@ -1,6 +1,7 @@
 import { createServer, Model, Factory } from "miragejs";
 import { faker } from "@faker-js/faker";
 import { hydrateServer } from "./hydrate";
+import { RECRUITMENT_STAGES, getAllStageIds } from "../config/stages";
 import {
   getCandidate,
   addCandidate,
@@ -190,7 +191,9 @@ export async function makeServer({ environment = "development" } = {}) {
         stage() {
           return faker.helpers.arrayElement([
             "applied",
+            "screen",
             "interview",
+            "tech",
             "offer",
             "hired",
             "rejected",
@@ -198,10 +201,36 @@ export async function makeServer({ environment = "development" } = {}) {
         },
         timeline() {
           const stage = this.stage;
-          return [
-            { date: faker.date.past().toISOString(), status: "applied" },
-            { date: new Date().toISOString(), status: stage },
+          const timeline = [
+            { date: faker.date.past({ months: 2 }).toISOString(), status: "applied" }
           ];
+
+          // Generate a realistic progression through stages
+          const stageIndex = RECRUITMENT_STAGES.findIndex(s => s.id === stage);
+          if (stageIndex > 0) {
+            // Add intermediate stages with properly spaced dates
+            for (let i = 1; i <= stageIndex; i++) {
+              if (RECRUITMENT_STAGES[i].id !== 'rejected') { // Skip rejected in progression
+                timeline.push({
+                  date: faker.date.between({
+                    from: timeline[i-1].date,
+                    to: new Date()
+                  }).toISOString(),
+                  status: RECRUITMENT_STAGES[i].id
+                });
+              }
+            }
+          }
+
+          // If rejected, it could happen at any stage after applied
+          if (stage === 'rejected') {
+            timeline.push({
+              date: faker.date.recent({ days: 5 }).toISOString(),
+              status: 'rejected'
+            });
+          }
+
+          return timeline;
         },
       }),
     },

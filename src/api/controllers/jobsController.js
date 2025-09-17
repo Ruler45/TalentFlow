@@ -343,17 +343,16 @@ export const reorderJobs = async (schema, request, serverReady) => {
   // Remove the job from its current position
   allJobs = allJobs.filter((job) => job.id !== id);
 
-  // Calculate the new position index
-  const toIndex = allJobs.findIndex((job) => job.order >= toOrder);
-  const insertIndex = toIndex === -1 ? allJobs.length : toIndex;
+  // Calculate the new position index based on target order
+  const insertIndex = toOrder - 1; // Convert 1-based order to 0-based index
 
   // Insert the job at its new position
-  allJobs.splice(insertIndex, 0, { ...movingJob, order: toOrder });
+  allJobs.splice(insertIndex, 0, { ...movingJob });
 
-  // Reassign sequential order values to all jobs
+  // Update orders for all jobs based on their new positions
   const updatedJobs = allJobs.map((job, index) => ({
     ...job,
-    order: index,
+    order: index + 1 // Simple sequential ordering from 1
   }));
 
   try {
@@ -400,12 +399,13 @@ export const reorderJobs = async (schema, request, serverReady) => {
       // Sort by order to check sequence
       const sortedJobs = [...allJobs].sort((a, b) => a.order - b.order);
 
-      // Check if orders are sequential and unique
+      // Check if orders are sequential and unique, starting from 1
       const orderIssues = [];
       for (let i = 0; i < sortedJobs.length; i++) {
-        if (sortedJobs[i].order !== i) {
+        const expectedOrder = i + 1; // Expected order is index + 1
+        if (sortedJobs[i].order !== expectedOrder) {
           orderIssues.push(
-            `Job ${sortedJobs[i].id} has order ${sortedJobs[i].order}, expected ${i}`
+            `Job ${sortedJobs[i].id} has order ${sortedJobs[i].order}, expected ${expectedOrder}`
           );
         }
         if (i > 0 && sortedJobs[i].order <= sortedJobs[i - 1].order) {
@@ -449,10 +449,10 @@ export const reorderJobs = async (schema, request, serverReady) => {
     // Attempt recovery
     try {
       await db.transaction("rw", db.jobs, async () => {
-        // Re-sort and reassign orders
+        // Re-sort and reassign orders, starting from 1
         const sortedJobs = currentJobs.sort((a, b) => a.order - b.order);
         for (let i = 0; i < sortedJobs.length; i++) {
-          await db.jobs.update(sortedJobs[i].id, { order: i });
+          await db.jobs.update(sortedJobs[i].id, { order: i + 1 });
         }
       });
       console.log("Recovery complete - orders reassigned sequentially");

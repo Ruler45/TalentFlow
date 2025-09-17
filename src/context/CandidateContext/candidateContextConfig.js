@@ -1,2 +1,3 @@
 export const PAGE_SIZE = 20;
-export const STAGES = ["applied", "interview", "offer", "hired", "rejected"];
+// Import stages from centralized configuration
+export { RECRUITMENT_STAGES as STAGES } from "../../config/stages";

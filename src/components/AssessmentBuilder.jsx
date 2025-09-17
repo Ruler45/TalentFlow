@@ -1,33 +1,48 @@
-import { useEffect } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useAssessments } from "../hooks/useAssessments"
 
 const questionTypes = ["single", "multi", "short", "long", "numeric", "file"];
 
 const PreviewQuestion = ({ question, questions, answers = {} }) => {
   if (question.conditionalLogic?.enabled) {
-    const dependentQuestion = questions.find(q => q.id === question.conditionalLogic.dependsOn);
-    if (!dependentQuestion) return null;
+    const { conditions = [], operator = 'AND' } = question.conditionalLogic;
+    
+    // If no conditions are set, show the question
+    if (!conditions.length) return null;
 
-    const answer = answers[dependentQuestion.id];
-    const { type, value } = question.conditionalLogic.condition;
+    const conditionResults = conditions.map(condition => {
+      const dependentQuestion = questions.find(q => q.id === condition.dependsOn);
+      if (!dependentQuestion) return false;
 
-    // If the dependent question hasn't been answered, don't show this question
-    if (!answer) return null;
+      const answer = answers[dependentQuestion.id];
+      if (!answer) return false;
 
-    const shouldShow = (() => {
-      switch (type) {
+      switch (condition.type) {
         case 'equals':
-          return answer === value;
+          return answer === condition.value;
         case 'notEquals':
-          return answer !== value;
+          return answer !== condition.value;
         case 'includes':
-          return Array.isArray(answer) ? answer.includes(value) : String(answer).includes(value);
+          return Array.isArray(answer) 
+            ? answer.includes(condition.value) 
+            : String(answer).includes(condition.value);
         case 'notIncludes':
-          return Array.isArray(answer) ? !answer.includes(value) : !String(answer).includes(value);
+          return Array.isArray(answer) 
+            ? !answer.includes(condition.value) 
+            : !String(answer).includes(condition.value);
+        case 'greaterThan':
+          return Number(answer) > Number(condition.value);
+        case 'lessThan':
+          return Number(answer) < Number(condition.value);
         default:
-          return true;
+          return false;
       }
-    })();
+    });
+
+    // Check if conditions are met based on the operator
+    const shouldShow = operator === 'AND'
+      ? conditionResults.every(result => result)
+      : conditionResults.some(result => result);
 
     if (!shouldShow) return null;
   }
@@ -157,28 +172,92 @@ export default function AssessmentBuilder({ jobId }) {
     getAssessmentByJobId
   } = useAssessments();
 
-  useEffect(() => {
-    if (jobId) {
-      loadAssessmentQuestions(jobId);
+  const [existingAssessment, setExistingAssessment] = useState(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+
+  // Handle bulk updates for existing assessment structure
+  const handleBulkQuestionUpdate = useCallback((questions) => {
+    if (Array.isArray(questions)) {
+      const updatedQuestions = questions.map(q => ({
+        ...q,
+        validation: q.validation || {},
+        conditionalLogic: q.conditionalLogic || {},
+        responses: q.responses || []
+      }));
+      // Use the context's update function to set all questions at once
+      updateQuestion(null, updatedQuestions);
     }
-  }, [jobId, loadAssessmentQuestions]);
+  }, [updateQuestion]);
+
+  // Load existing assessment and its structure
+  useEffect(() => {
+    const loadExistingAssessment = async () => {
+      if (jobId) {
+        const assessment = getAssessmentByJobId(jobId);
+        setExistingAssessment(assessment);
+        
+        if (assessment) {
+          setIsEditMode(false); // Start in view mode for existing assessments
+          // Load the existing structure into the current questions
+          if (assessment.structure && Array.isArray(assessment.structure)) {
+            // Convert structure back to questions format if needed
+            const existingQuestions = assessment.structure.map(q => ({
+              id: q.id || `${Date.now()}-${Math.random()}`,
+              text: q.text || '',
+              type: q.type || '',
+              options: q.options || [],
+              validation: q.validation || {},
+              conditionalLogic: q.conditionalLogic || {},
+              responses: q.responses || []
+            }));
+            handleBulkQuestionUpdate(existingQuestions);
+          }
+        } else {
+          setIsEditMode(true); // Start in edit mode for new assessments
+          await loadAssessmentQuestions(jobId);
+        }
+      }
+    };
+
+    loadExistingAssessment();
+  }, [jobId, getAssessmentByJobId, loadAssessmentQuestions, handleBulkQuestionUpdate]);
 
   const saveAssessment = async () => {
     try {
+      if (!questions.length) {
+        alert("Please add at least one question to the assessment.");
+        return;
+      }
+
       const assessmentData = {
         jobId,
-        questions,
+        structure: questions.map(q => ({
+          ...q,
+          responses: q.responses || []  // Use existing responses or initialize empty array
+        })),
+        responses: existingAssessment?.responses || {},   // Preserve existing responses or initialize empty
         lastUpdated: new Date().toISOString()
       };
 
-      const existingAssessment = getAssessmentByJobId(jobId);
-      if (existingAssessment) {
-        if (confirm("Assessment already exists for this job. Do you want to update it?")) {
-          await updateAssessment(existingAssessment.id, assessmentData);
-          alert("Assessment updated successfully!");
+      if (existingAssessment && isEditMode) {
+        // Update existing assessment
+        await updateAssessment(existingAssessment.id, assessmentData);
+        setExistingAssessment({
+          ...existingAssessment,
+          ...assessmentData
+        });
+        setIsEditMode(false);
+        alert("Assessment updated successfully!");
+      } else if (existingAssessment && !isEditMode) {
+        // Trying to create new when assessment exists
+        if (confirm("An assessment already exists for this job. Do you want to update it instead?")) {
+          setIsEditMode(true);
+          loadAssessmentQuestions(jobId);
         }
       } else {
-        await addAssessment(assessmentData);
+        // Create new assessment
+        const newAssessment = await addAssessment(assessmentData);
+        setExistingAssessment(newAssessment);
         alert("Assessment saved successfully!");
       }
     } catch (error) {
@@ -190,33 +269,61 @@ export default function AssessmentBuilder({ jobId }) {
   return (
     <div className="p-6 bg-white shadow-lg rounded-lg max-w-7xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-2xl font-bold text-gray-800">Assessment Builder</h3>
-        <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
-          <button
-            onClick={togglePreviewMode}
-            className={`px-4 py-2 rounded-md font-medium transition-all ${
-              !previewMode
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
-          >
-            Edit
-          </button>
-          <button
-            onClick={togglePreviewMode}
-            className={`px-4 py-2 rounded-md font-medium transition-all ${
-              previewMode
-                ? "bg-white text-gray-800 shadow-sm"
-                : "text-gray-600 hover:text-gray-800"
-            }`}
-          >
-            Preview
-          </button>
+        <div className="flex items-center gap-4">
+          <h3 className="text-2xl font-bold text-gray-800">
+            {existingAssessment ? 'Edit Assessment' : 'Create Assessment'}
+          </h3>
+          {existingAssessment && (
+            <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+              Last updated: {new Date(existingAssessment.lastUpdated).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2">
+          {existingAssessment && (
+            <button
+              onClick={() => {
+                setIsEditMode(!isEditMode);
+                if (!isEditMode) {
+                  loadAssessmentQuestions(jobId);
+                }
+              }}
+              className={`px-4 py-2 rounded-md font-medium transition-all ${
+                isEditMode
+                  ? "bg-gray-100 text-gray-800"
+                  : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+              }`}
+            >
+              {isEditMode ? "Cancel Edit" : "Edit Assessment"}
+            </button>
+          )}
+          <div className="flex gap-2 p-1 bg-gray-100 rounded-lg">
+            <button
+              onClick={togglePreviewMode}
+              className={`px-4 py-2 rounded-md font-medium transition-all ${
+                !previewMode
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Edit
+            </button>
+            <button
+              onClick={togglePreviewMode}
+              className={`px-4 py-2 rounded-md font-medium transition-all ${
+                previewMode
+                  ? "bg-white text-gray-800 shadow-sm"
+                  : "text-gray-600 hover:text-gray-800"
+              }`}
+            >
+              Preview
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-6">
-        <div className={previewMode ? "hidden" : ""}>
+        <div className={previewMode || (existingAssessment && !isEditMode) ? "hidden" : ""}>
           {/* Questions List */}
           <ul className="space-y-6 mb-6">
             {questions.map((q) => (
@@ -322,19 +429,20 @@ export default function AssessmentBuilder({ jobId }) {
                       />
                       <span className="text-sm">Required</span>
                     </label>
-                    
-                    {q.type === "numeric" && (
-                      <div className="grid grid-cols-2 gap-2">
+
+                    {q.type === "file" && (
+                      <div className="space-y-2">
                         <div>
-                          <label className="block text-sm">Min Value</label>
+                          <label className="block text-sm">Allowed File Types</label>
                           <input
-                            type="number"
-                            value={q.validation?.min || ""}
+                            type="text"
+                            placeholder="e.g., .pdf,.doc,.docx"
+                            value={q.validation?.allowedTypes || ""}
                             onChange={(e) =>
                               updateQuestion(q.id, {
                                 validation: {
                                   ...q.validation,
-                                  min: e.target.value ? Number(e.target.value) : null,
+                                  allowedTypes: e.target.value,
                                 },
                               })
                             }
@@ -342,15 +450,15 @@ export default function AssessmentBuilder({ jobId }) {
                           />
                         </div>
                         <div>
-                          <label className="block text-sm">Max Value</label>
+                          <label className="block text-sm">Max File Size (MB)</label>
                           <input
                             type="number"
-                            value={q.validation?.max || ""}
+                            value={q.validation?.maxSize || ""}
                             onChange={(e) =>
                               updateQuestion(q.id, {
                                 validation: {
                                   ...q.validation,
-                                  max: e.target.value ? Number(e.target.value) : null,
+                                  maxSize: e.target.value ? Number(e.target.value) : null,
                                 },
                               })
                             }
@@ -360,22 +468,113 @@ export default function AssessmentBuilder({ jobId }) {
                       </div>
                     )}
                     
+                    {q.type === "numeric" && (
+                      <div className="space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="block text-sm">Min Value</label>
+                            <input
+                              type="number"
+                              value={q.validation?.min || ""}
+                              onChange={(e) =>
+                                updateQuestion(q.id, {
+                                  validation: {
+                                    ...q.validation,
+                                    min: e.target.value ? Number(e.target.value) : null,
+                                  },
+                                })
+                              }
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm">Max Value</label>
+                            <input
+                              type="number"
+                              value={q.validation?.max || ""}
+                              onChange={(e) =>
+                                updateQuestion(q.id, {
+                                  validation: {
+                                    ...q.validation,
+                                    max: e.target.value ? Number(e.target.value) : null,
+                                  },
+                                })
+                              }
+                              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                            />
+                          </div>
+                        </div>
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={q.validation?.allowDecimals || false}
+                            onChange={(e) =>
+                              updateQuestion(q.id, {
+                                validation: {
+                                  ...q.validation,
+                                  allowDecimals: e.target.checked,
+                                },
+                              })
+                            }
+                            className="rounded text-blue-600"
+                          />
+                          <span className="text-sm">Allow Decimal Numbers</span>
+                        </label>
+                      </div>
+                    )}
+                    
                     {(q.type === "short" || q.type === "long") && (
-                      <div>
-                        <label className="block text-sm">Max Length</label>
-                        <input
-                          type="number"
-                          value={q.validation?.maxLength || ""}
-                          onChange={(e) =>
-                            updateQuestion(q.id, {
-                              validation: {
-                                ...q.validation,
-                                maxLength: e.target.value ? Number(e.target.value) : null,
-                              },
-                            })
-                          }
-                          className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
-                        />
+                      <div className="space-y-2">
+                        <div>
+                          <label className="block text-sm">Max Length</label>
+                          <input
+                            type="number"
+                            value={q.validation?.maxLength || ""}
+                            onChange={(e) =>
+                              updateQuestion(q.id, {
+                                validation: {
+                                  ...q.validation,
+                                  maxLength: e.target.value ? Number(e.target.value) : null,
+                                },
+                              })
+                            }
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm">Pattern (Regex)</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., ^[a-zA-Z0-9]+$"
+                            value={q.validation?.pattern || ""}
+                            onChange={(e) =>
+                              updateQuestion(q.id, {
+                                validation: {
+                                  ...q.validation,
+                                  pattern: e.target.value,
+                                },
+                              })
+                            }
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm">Pattern Error Message</label>
+                          <input
+                            type="text"
+                            placeholder="e.g., Only alphanumeric characters allowed"
+                            value={q.validation?.patternError || ""}
+                            onChange={(e) =>
+                              updateQuestion(q.id, {
+                                validation: {
+                                  ...q.validation,
+                                  patternError: e.target.value,
+                                },
+                              })
+                            }
+                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -394,6 +593,7 @@ export default function AssessmentBuilder({ jobId }) {
                             conditionalLogic: {
                               ...q.conditionalLogic,
                               enabled: e.target.checked,
+                              conditions: e.target.checked ? [{ id: Date.now(), dependsOn: '', type: 'equals', value: '' }] : [],
                             },
                           })
                         }
@@ -403,76 +603,140 @@ export default function AssessmentBuilder({ jobId }) {
                     </label>
                     
                     {q.conditionalLogic?.enabled && (
-                      <>
-                        <div>
-                          <label className="block text-sm">Depends on Question</label>
-                          <select
-                            value={q.conditionalLogic?.dependsOn || ""}
-                            onChange={(e) =>
+                      <div className="space-y-4 mt-2">
+                        <div className="flex items-center justify-between">
+                          <h5 className="text-sm font-medium text-gray-700">Conditions</h5>
+                          <button
+                            onClick={() => {
+                              const newCondition = { id: Date.now(), dependsOn: '', type: 'equals', value: '' };
                               updateQuestion(q.id, {
                                 conditionalLogic: {
                                   ...q.conditionalLogic,
-                                  dependsOn: e.target.value,
-                                },
-                              })
-                            }
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                                  conditions: [...(q.conditionalLogic.conditions || []), newCondition],
+                                  operator: q.conditionalLogic.operator || 'AND'
+                                }
+                              });
+                            }}
+                            className="text-sm text-blue-600 hover:text-blue-700"
                           >
-                            <option value="">Select a question</option>
-                            {questions
-                              .filter((otherQ) => otherQ.id !== q.id)
-                              .map((otherQ) => (
-                                <option key={otherQ.id} value={otherQ.id}>
-                                  {otherQ.text}
-                                </option>
-                              ))}
-                          </select>
+                            + Add Condition
+                          </button>
                         </div>
-                        
-                        <div>
-                          <label className="block text-sm">Condition Type</label>
-                          <select
-                            value={q.conditionalLogic?.condition?.type || "equals"}
-                            onChange={(e) =>
-                              updateQuestion(q.id, {
-                                conditionalLogic: {
-                                  ...q.conditionalLogic,
-                                  condition: {
-                                    ...q.conditionalLogic?.condition,
-                                    type: e.target.value,
+
+                        {/* Condition Operator */}
+                        {(q.conditionalLogic?.conditions || []).length > 1 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">Show this question if:</span>
+                            <select
+                              value={q.conditionalLogic?.operator || 'AND'}
+                              onChange={(e) =>
+                                updateQuestion(q.id, {
+                                  conditionalLogic: {
+                                    ...q.conditionalLogic,
+                                    operator: e.target.value,
                                   },
-                                },
-                              })
-                            }
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
-                          >
-                            <option value="equals">Equals</option>
-                            <option value="notEquals">Not Equals</option>
-                            <option value="includes">Includes</option>
-                            <option value="notIncludes">Not Includes</option>
-                          </select>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm">Condition Value</label>
-                          <input
-                            type="text"
-                            value={q.conditionalLogic?.condition?.value || ""}
-                            onChange={(e) =>
-                              updateQuestion(q.id, {
-                                conditionalLogic: {
-                                  ...q.conditionalLogic,
-                                  condition: {
-                                    ...q.conditionalLogic?.condition,
-                                    value: e.target.value,
-                                  },
-                                },
-                              })
-                            }
-                            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
-                          />
-                        </div>
-                      </>
+                                })
+                              }
+                              className="text-sm border-gray-300 rounded-md"
+                            >
+                              <option value="AND">ALL conditions are met</option>
+                              <option value="OR">ANY condition is met</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {/* Conditions List */}
+                        {(q.conditionalLogic?.conditions || []).map((condition) => (
+                          <div key={condition.id} className="grid grid-cols-3 gap-2 p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <label className="block text-sm text-gray-600">Question</label>
+                              <select
+                                value={condition.dependsOn}
+                                onChange={(e) =>
+                                  updateQuestion(q.id, {
+                                    conditionalLogic: {
+                                      ...q.conditionalLogic,
+                                      conditions: q.conditionalLogic.conditions.map(c =>
+                                        c.id === condition.id ? { ...c, dependsOn: e.target.value } : c
+                                      ),
+                                    },
+                                  })
+                                }
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                              >
+                                <option value="">Select a question</option>
+                                {questions
+                                  .filter((otherQ) => otherQ.id !== q.id)
+                                  .map((otherQ) => (
+                                    <option key={otherQ.id} value={otherQ.id}>
+                                      {otherQ.text}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            
+                            <div>
+                              <label className="block text-sm text-gray-600">Condition</label>
+                              <select
+                                value={condition.type}
+                                onChange={(e) =>
+                                  updateQuestion(q.id, {
+                                    conditionalLogic: {
+                                      ...q.conditionalLogic,
+                                      conditions: q.conditionalLogic.conditions.map(c =>
+                                        c.id === condition.id ? { ...c, type: e.target.value } : c
+                                      ),
+                                    },
+                                  })
+                                }
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                              >
+                                <option value="equals">Equals</option>
+                                <option value="notEquals">Does not equal</option>
+                                <option value="includes">Contains</option>
+                                <option value="notIncludes">Does not contain</option>
+                                <option value="greaterThan">Greater than</option>
+                                <option value="lessThan">Less than</option>
+                              </select>
+                            </div>
+                            
+                            <div className="relative">
+                              <label className="block text-sm text-gray-600">Value</label>
+                              <input
+                                type="text"
+                                value={condition.value}
+                                onChange={(e) =>
+                                  updateQuestion(q.id, {
+                                    conditionalLogic: {
+                                      ...q.conditionalLogic,
+                                      conditions: q.conditionalLogic.conditions.map(c =>
+                                        c.id === condition.id ? { ...c, value: e.target.value } : c
+                                      ),
+                                    },
+                                  })
+                                }
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm"
+                              />
+                              {q.conditionalLogic.conditions.length > 1 && (
+                                <button
+                                  onClick={() => {
+                                    updateQuestion(q.id, {
+                                      conditionalLogic: {
+                                        ...q.conditionalLogic,
+                                        conditions: q.conditionalLogic.conditions.filter(c => c.id !== condition.id),
+                                      },
+                                    });
+                                  }}
+                                  className="absolute top-0 right-0 -mt-2 -mr-2 text-red-500 hover:text-red-700"
+                                  title="Remove condition"
+                                >
+                                  ×
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 </div>
