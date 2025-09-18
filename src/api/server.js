@@ -7,6 +7,7 @@ import {
   addCandidate,
   getCandidateById,
   updateCandidate,
+  deleteCandidate,
 } from "./controllers/candidateController";
 import {
   getJobs,
@@ -16,10 +17,12 @@ import {
   reorderJobs,
 } from "./controllers/jobsController";
 import {
+  getAllAssessments,
   getAssessmentByJobId,
   putAssessmentByJobId,
   submitAssessmentResponse,
   getAssessmentResponses,
+  getCandidateResponse,
 } from "./controllers/assessmentsController";
 
 // Create a promise that resolves when the server is ready
@@ -303,7 +306,14 @@ export async function makeServer({ environment = "development" } = {}) {
         return error || updateCandidate(schema, request);
       });
 
+      this.delete("/candidates/:id", async (schema, request) => {
+        const error = simulateErrors(schema, request);
+        return error || deleteCandidate(schema, request, serverReady);
+      });
+
       // Assessments
+      this.get("/assessments", getAllAssessments);
+
       this.get("/assessments/:jobId", getAssessmentByJobId);
       
       this.put("/assessments/:jobId", async (schema, request) => {
@@ -317,6 +327,8 @@ export async function makeServer({ environment = "development" } = {}) {
       });
       
       this.get("/assessments/:jobId/responses", getAssessmentResponses);
+
+      this.get("/assessments/:jobId/responses/:candidateName", getCandidateResponse);
     },
   });
 

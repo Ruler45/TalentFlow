@@ -1,5 +1,4 @@
 import React, {  useState, useEffect, useMemo, useCallback } from 'react';
-import { db } from '../../db/db';
 import { AssessmentContext } from "./AssessmentContextConfig";
 // useAssessments has been moved to a separate file for Fast Refresh compatibility.
 
@@ -32,9 +31,13 @@ export function AssessmentProvider({ children }) {
 
     const loadAssessments = async () => {
       try {
-        const allAssessments = await db.assessments.toArray();
+        const response = await fetch('/api/assessments');
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
         if (mounted) {
-          setAssessments(allAssessments);
+          setAssessments(data.assessments || []);
           setLoading(false);
         }
       } catch (error) {
@@ -62,10 +65,19 @@ export function AssessmentProvider({ children }) {
 
   const addAssessment = useCallback(async (assessmentData) => {
     try {
-      const id = await db.assessments.add(assessmentData);
-      const newAssessment = { ...assessmentData, id };
+      const response = await fetch('/api/assessments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assessmentData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const newAssessment = await response.json();
       setAssessments(prev => [...prev, newAssessment]);
-      return id;
+      return newAssessment.id;
     } catch (error) {
       console.error('Error adding assessment:', error);
       throw error;
@@ -74,9 +86,19 @@ export function AssessmentProvider({ children }) {
 
   const updateAssessment = useCallback(async (id, assessmentData) => {
     try {
-      await db.assessments.update(id, assessmentData);
+      const response = await fetch(`/api/assessments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(assessmentData)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const updatedAssessment = await response.json();
       setAssessments(prev => prev.map(assessment => 
-        assessment.id === id ? { ...assessment, ...assessmentData } : assessment
+        assessment.id === id ? updatedAssessment : assessment
       ));
     } catch (error) {
       console.error('Error updating assessment:', error);
@@ -86,7 +108,15 @@ export function AssessmentProvider({ children }) {
 
   const deleteAssessment = useCallback(async (id) => {
     try {
-      await db.assessments.delete(id);
+      const response = await fetch(`/api/assessments/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       setAssessments(prev => prev.filter(assessment => assessment.id !== id));
     } catch (error) {
       console.error('Error deleting assessment:', error);
@@ -153,11 +183,12 @@ export function AssessmentProvider({ children }) {
     setAssessmentLoading(true);
 
     try {
-      const assessment = await db.assessments.where('jobId').equals(jobId).first();
+      const response = await fetch(`/api/assessments/${jobId}`);
       
       if (!mounted) return;
-      
-      if (assessment) {
+
+      if (response.ok) {
+        const assessment = await response.json();
         setCurrentAssessment(assessment);
         setCurrentJobId(jobId);
         setCurrentQuestions(assessment.questions || []);
@@ -192,34 +223,24 @@ export function AssessmentProvider({ children }) {
     setResponseLoading(true);
 
     try {
-      const assessment = await db.assessments.where('jobId').equals(jobId).first();
+      const response = await fetch(`/api/assessments/${jobId}/responses/${candidateName}`);
       
       if (!mounted) return;
 
-      if (!assessment || !assessment.responses || !assessment.structure) {
-        console.error('Invalid assessment data:', { 
-          exists: !!assessment, 
-          hasResponses: !!assessment?.responses, 
-          hasStructure: !!assessment?.structure 
-        });
-        setCandidateResponse(null);
-        return;
-      }
+      if (response.ok) {
+        const data = await response.json();
+        if (!data || !data.responses || !data.structure) {
+          console.error('Invalid assessment data');
+          setCandidateResponse(null);
+          return;
+        }
 
-      const candidateData = assessment.responses[candidateName];
-      if (!candidateData) {
+        if (mounted) {
+          setCandidateResponse(data);
+        }
+      } else {
         console.error('No responses found for candidate:', candidateName);
         setCandidateResponse(null);
-        return;
-      }
-
-      const response = {
-        responses: { [candidateName]: candidateData },
-        structure: assessment.structure,
-      };
-
-      if (mounted) {
-        setCandidateResponse(response);
       }
     } catch (error) {
       console.error('Error loading candidate response:', error);
@@ -240,8 +261,13 @@ export function AssessmentProvider({ children }) {
   const refreshAssessments = useCallback(async () => {
     setLoading(true);
     try {
-      const allAssessments = await db.assessments.toArray();
-      setAssessments(allAssessments);
+      const response = await fetch('/api/assessments');
+      if (response.ok) {
+        const data = await response.json();
+        setAssessments(data.assessments || []);
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
     } catch (error) {
       console.error('Error refreshing assessments:', error);
     } finally {

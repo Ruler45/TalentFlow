@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { db } from '../../db/db';
 import { PAGE_SIZE, STAGES } from './candidateContextConfig';
 import { CandidateContext } from './candidateContextInstance';
 
@@ -59,15 +58,38 @@ export function CandidateProvider({ children }) {
   const addCandidate = async (candidateData) => {
     setLoading(true);
     try {
-      const id = await db.candidates.add({
-        ...candidateData,
-        createdAt: new Date().toISOString(),
-        status: candidateData.status || 'new'
+      // Send create request to API
+      const response = await fetch('/api/candidates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...candidateData,
+          createdAt: new Date().toISOString(),
+          status: candidateData.status || 'new'
+        })
       });
-      const newCandidate = { ...candidateData, id };
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const newCandidate = await response.json();
+      
+      // Update local state with the response from API
       setCandidates(prev => [...prev, newCandidate]);
+      
+      // Update lists state if needed
+      setLists(prev => {
+        const updatedLists = { ...prev };
+        const stage = newCandidate.stage || 'applied';
+        updatedLists[stage] = Array.isArray(updatedLists[stage])
+          ? [...updatedLists[stage], newCandidate]
+          : [newCandidate];
+        return updatedLists;
+      });
+
       setError(null);
-      return id;
+      return newCandidate.id;
     } catch (err) {
       console.error('Error adding candidate:', err);
       setError('Failed to add candidate');
@@ -116,8 +138,27 @@ export function CandidateProvider({ children }) {
   const deleteCandidate = async (id) => {
     setLoading(true);
     try {
-      await db.candidates.delete(id);
+      const response = await fetch(`/api/candidates/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      // Update local state
       setCandidates(prev => prev.filter(candidate => candidate.id !== id));
+      
+      // Update lists state
+      setLists(prev => {
+        const updatedLists = { ...prev };
+        Object.keys(updatedLists).forEach(stage => {
+          updatedLists[stage] = updatedLists[stage]?.filter(c => c.id !== id) || [];
+        });
+        return updatedLists;
+      });
+      
       setError(null);
     } catch (err) {
       console.error('Error deleting candidate:', err);
@@ -233,41 +274,21 @@ export function CandidateProvider({ children }) {
     try {
       setLoading(true);
       
-      // First try to get from IndexedDB
-      const dbId = id;
-      const dbCandidate = await db.candidates.get(dbId);
-      
-      // Then fetch from API
       const res = await fetch(`/api/candidates/${id}`);
 
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
 
-      const apiData = await res.json();
-      const apiCandidate = apiData.candidate || apiData;
+      const data = await res.json();
+      const candidate = data.candidate || data;
 
-      if (!apiCandidate.id) {
+      if (!candidate.id) {
         throw new Error("Invalid candidate data received from API");
       }
 
-      // Merge data, preferring IndexedDB for local state (stage, timeline, notes)
-      // but taking other fields from API
-      const mergedCandidate = {
-        ...apiCandidate,
-        stage: dbCandidate?.stage || apiCandidate.stage,
-        timeline: dbCandidate?.timeline || apiCandidate.timeline || [],
-        notes: dbCandidate?.notes || apiCandidate.notes || []
-      };
-
-      // Update IndexedDB with merged data to maintain consistency
-      await db.candidates.put({
-        ...mergedCandidate,
-        id: dbId
-      });
-
       setError(null);
-      return mergedCandidate;
+      return candidate;
     } catch (err) {
       if (retryCount < 2) {
         console.log("Retrying after error...", err);

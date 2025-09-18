@@ -122,10 +122,26 @@ export default function CandidatesPage() {
         <div className="fixed inset-0 backdrop-blur-lg bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className=" rounded-lg w-full max-w-md">
             <CandidateForm
-              onSubmit={async (candidate) => {
-                await addCandidate(candidate);
-                fetchCandidates(page, selectedStage);
-                setShowForm(false);
+              onSubmit={async (formData) => {
+                try {
+                  // Transform the data to match Dexie schema
+                  const candidateData = {
+                    ...formData,
+                    stage: formData.stage || 'applied',
+                    timeline: [{
+                      date: new Date().toISOString(),
+                      status: formData.stage || 'applied'
+                    }],
+                    notes: []
+                  };
+                  
+                  await addCandidate(candidateData);
+                  fetchCandidates(page, selectedStage);
+                  setShowForm(false);
+                } catch (error) {
+                  console.error('Error adding candidate:', error);
+                  // You might want to show an error message to the user here
+                }
               }}
               onCancel={() => setShowForm(false)}
             />

@@ -338,4 +338,51 @@ const updateCandidate = async function (schema, request, serverReady) {
     );
   }
 };
-export { getCandidate, addCandidate, getCandidateById, updateCandidate };
+const deleteCandidate = async function (schema, request, serverReady) {
+  await serverReady;
+
+  const id = request.params.id;
+
+  try {
+    // Check if candidate exists in either source
+    const [dbCandidate, schemaCandidate] = await Promise.all([
+      db.candidates.get(id),
+      Promise.resolve(schema.candidates.find(id))
+    ]);
+
+    if (!dbCandidate && !schemaCandidate) {
+      return new Response(404, {}, { error: "Candidate not found" });
+    }
+
+    // Delete from schema first
+    if (schemaCandidate) {
+      schemaCandidate.destroy();
+    }
+
+    // Then delete from IndexedDB
+    try {
+      await db.candidates.delete(id);
+    } catch (dbError) {
+      console.error("IndexedDB deletion failed:", dbError);
+      // If schema delete succeeded but DB failed, return error
+      return new Response(500, {}, {
+        error: "Failed to delete from database",
+        details: dbError.message
+      });
+    }
+
+    // Return success response
+    return new Response(200, {}, {
+      success: true,
+      message: "Candidate deleted successfully"
+    });
+  } catch (error) {
+    console.error("Error in deleteCandidate:", error);
+    return new Response(500, {}, {
+      error: "Failed to delete candidate",
+      details: error.message
+    });
+  }
+};
+
+export { getCandidate, addCandidate, getCandidateById, updateCandidate, deleteCandidate };
