@@ -21,14 +21,13 @@ export default function JobsPage() {
   } = useJobs();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(PAGE_SIZE);
-  const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   // Modal state moved to context
 
   useEffect(() => {
-    fetchJobs(page, pageSize, search, status);
-  }, [fetchJobs, page, pageSize, search, status]);
+    fetchJobs(page, pageSize, null, status);
+  }, [fetchJobs, page, pageSize, status]);
 
   // Handle drag and drop reordering
   const handleDragEnd = (result) => {
@@ -140,34 +139,11 @@ export default function JobsPage() {
         </div>
       </div>
 
-      {/* Filters */}
+      {/* Status Filter */}
       <div className="mb-6 bg-white shadow-sm rounded-lg border border-gray-200">
         <div className="p-4">
           <div className="sm:flex sm:items-center gap-4">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg
-                  className="h-5 w-5 text-gray-400"
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-              </div>
-              <input
-                type="text"
-                placeholder="Search positions..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              />
-            </div>
-            <div className="mt-4 sm:mt-0 sm:w-40">
+            <div className="w-40">
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
@@ -179,41 +155,27 @@ export default function JobsPage() {
               </select>
             </div>
           </div>
-          {(search || status) && (
+          {status && (
             <div className="mt-2 flex items-center justify-between text-sm text-gray-500">
               <div className="flex items-center gap-2">
-                Active filters:
-                {search && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Search: {search}
-                    <button
-                      onClick={() => setSearch("")}
-                      className="ml-1 text-blue-600 hover:text-blue-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
-                {status && (
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    Status: {status}
-                    <button
-                      onClick={() => setStatus("")}
-                      className="ml-1 text-blue-600 hover:text-blue-800"
-                    >
-                      ×
-                    </button>
-                  </span>
-                )}
+                Active filter:
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  Status: {status}
+                  <button
+                    onClick={() => setStatus("")}
+                    className="ml-1 text-blue-600 hover:text-blue-800"
+                  >
+                    ×
+                  </button>
+                </span>
               </div>
               <button
                 onClick={() => {
-                  setSearch("");
                   setStatus("");
                 }}
                 className="text-sm text-blue-600 hover:text-blue-800"
               >
-                Clear all filters
+                Clear filter
               </button>
             </div>
           )}
