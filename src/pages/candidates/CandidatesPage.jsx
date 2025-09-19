@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Link, Routes, Route } from "react-router-dom";
 import CandidateDetail from "./CandidateDetail";
 import CandidateForm from "../../components/CandidateForm";
@@ -9,11 +9,12 @@ import { useCandidates } from '../../hooks/useCandidates';
 const PAGE_SIZE = 20;
 
 export default function CandidatesPage() {
-  const { lists, total, fetchCandidates, updateCandidateStage, addCandidate } = useCandidates();
+  const { lists, total, fetchCandidates, updateCandidateStage, addCandidate, filterCandidates, candidates } = useCandidates();
   const [page, setPage] = useState(1);
   const [selectedStage, setSelectedStage] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [draggingId, setDraggingId] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setPage(1);
@@ -22,6 +23,23 @@ export default function CandidatesPage() {
   useEffect(() => {
     fetchCandidates(page, selectedStage);
   }, [fetchCandidates, page, selectedStage]);
+
+  // Filter candidates based on search query
+  const filteredCandidatesBySearch = useMemo(() => {
+    if (!searchQuery) return candidates;
+    return filterCandidates({ search: searchQuery });
+  }, [candidates, filterCandidates, searchQuery]);
+
+  // Organize filtered candidates by stage
+  const filteredLists = useMemo(() => {
+    const grouped = {};
+    RECRUITMENT_STAGES.forEach(stage => {
+      grouped[stage.id] = filteredCandidatesBySearch.filter(
+        candidate => candidate.stage === stage.id
+      );
+    });
+    return grouped;
+  }, [filteredCandidatesBySearch]);
 
   const handleDragStart = (start) => {
     setDraggingId(start.draggableId);
@@ -54,23 +72,39 @@ export default function CandidatesPage() {
       <div className="p-4 flex flex-wrap items-center justify-between">
         <div className="flex items-center gap-4">
           <h2 className="text-lg font-bold">Candidates</h2>
-          <div className="flex items-center gap-2">
-            <label htmlFor="stage-filter" className="font-medium">
-              Filter by Stage:
-            </label>
-            <select
-              id="stage-filter"
-              value={selectedStage}
-              onChange={(e) => setSelectedStage(e.target.value)}
-              className="border px-2 py-1 rounded"
-            >
-              <option value="">All Stages</option>
-              {RECRUITMENT_STAGES.map((stage) => (
-                <option key={stage.id} value={stage.id}>
-                  {stage.label}
-                </option>
-              ))}
-            </select>
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search candidates..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="border rounded-lg px-3 py-2 pl-9 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="stage-filter" className="font-medium">
+                Filter by Stage:
+              </label>
+              <select
+                id="stage-filter"
+                value={selectedStage}
+                onChange={(e) => setSelectedStage(e.target.value)}
+                className="border px-2 py-1 rounded"
+              >
+                <option value="">All Stages</option>
+                {RECRUITMENT_STAGES.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
         <button
@@ -151,7 +185,8 @@ export default function CandidatesPage() {
       <DragDropContext onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
           <div className="w-full px-4 flex gap-4 flex-wrap justify-evenly pb-4 mb-8 min-h-[calc(100vh-300px)]">
             {RECRUITMENT_STAGES.map((stage) => {
-              const items = lists[stage.id] || [];
+              const items = filteredLists[stage.id] || [];
+              const totalInStage = lists[stage.id]?.length || 0;
               return (
                 <div 
                   className="flex-shrink-0 w-80 flex flex-col h-96 bg-gray-50 rounded-lg shadow-sm transition-all duration-200 ease-in-out hover:shadow-md" 
@@ -168,7 +203,7 @@ export default function CandidatesPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-2xl" role="img" aria-label={stage.label}>{stage.icon}</span>
                       <span className="px-2 py-1 bg-gray-100 text-gray-600 text-sm rounded-full">
-                        {items.length}
+                        {searchQuery ? `${items.length}/${totalInStage}` : items.length}
                       </span>
                     </div>
                   </div>
